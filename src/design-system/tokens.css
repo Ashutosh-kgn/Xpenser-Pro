@@ -1,0 +1,253 @@
+/* CSS Design Tokens for Xpenser OS */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Fonts */
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-heading: 'Outfit', var(--font-sans);
+  --font-mono: 'Space Grotesk', ui-monospace, SFMono-Regular, monospace;
+
+  /* Spacing Scale */
+  --space-2xs: 0.25rem;  /* 4px */
+  --space-xs: 0.5rem;    /* 8px */
+  --space-sm: 0.75rem;   /* 12px */
+  --space-md: 1rem;      /* 16px */
+  --space-lg: 1.5rem;    /* 24px */
+  --space-xl: 2rem;      /* 32px */
+  --space-2xl: 3rem;     /* 48px */
+  --space-3xl: 4rem;     /* 64px */
+
+  /* Border Radii */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  --radius-full: 9999px;
+
+  /* Blur Layers */
+  --blur-xs: blur(4px);
+  --blur-sm: blur(8px);
+  --blur-md: blur(16px);
+  --blur-lg: blur(28px);
+  --blur-xl: blur(40px);
+
+  /* Animation Curves */
+  --ease-spring: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+  --transition-fast: 150ms var(--ease-spring);
+  --transition-normal: 300ms var(--ease-smooth);
+  --transition-slow: 500ms var(--ease-smooth);
+
+  /* Shared Light Mode Theme Variables */
+  --light-primary: #5925fa;
+  --light-primary-rgb: 89, 37, 250;
+  --light-secondary: #00b4d8;
+  --light-bg: #f5f6fa;
+  --light-bg-mesh: radial-gradient(at 0% 0%, rgba(89, 37, 250, 0.05) 0px, transparent 50%),
+                    radial-gradient(at 100% 100%, rgba(0, 180, 216, 0.05) 0px, transparent 50%);
+  --light-surface: #ffffff;
+  --light-surface-elevated: #f8f9fa;
+  --light-border: rgba(0, 0, 0, 0.06);
+  --light-border-hover: rgba(0, 0, 0, 0.12);
+  --light-glass: rgba(255, 255, 255, 0.7);
+  --light-text: #1d2130;
+  --light-text-muted: #6b7588;
+  --light-text-heading: #090b11;
+  --light-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --light-shadow-md: 0 8px 30px rgba(0, 0, 0, 0.06);
+  --light-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.08);
+  --light-shadow-glow: 0 0 40px rgba(89, 37, 250, 0.1);
+
+  /* Shared Dark Mode Theme Variables */
+  --dark-primary: #7e52ff;
+  --dark-primary-rgb: 126, 82, 255;
+  --dark-secondary: #00f5d4;
+  --dark-bg: #07070a;
+  --dark-bg-mesh: radial-gradient(at 0% 0%, rgba(126, 82, 255, 0.07) 0px, transparent 50%),
+                  radial-gradient(at 100% 100%, rgba(0, 245, 212, 0.04) 0px, transparent 50%);
+  --dark-surface: #0f1016;
+  --dark-surface-elevated: #161822;
+  --dark-border: rgba(255, 255, 255, 0.05);
+  --dark-border-hover: rgba(255, 255, 255, 0.1);
+  --dark-glass: rgba(15, 16, 22, 0.65);
+  --dark-text: #e2e4e9;
+  --dark-text-muted: #868c98;
+  --dark-text-heading: #ffffff;
+  --dark-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --dark-shadow-md: 0 8px 30px rgba(0, 0, 0, 0.5);
+  --dark-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.7);
+  --dark-shadow-glow: 0 0 40px rgba(126, 82, 255, 0.15);
+
+  /* Shared AMOLED Mode Theme Variables */
+  --amoled-primary: #9470ff;
+  --amoled-primary-rgb: 148, 112, 255;
+  --amoled-secondary: #00e5ff;
+  --amoled-bg: #000000;
+  --amoled-bg-mesh: none;
+  --amoled-surface: #080808;
+  --amoled-surface-elevated: #121212;
+  --amoled-border: rgba(255, 255, 255, 0.08);
+  --amoled-border-hover: rgba(255, 255, 255, 0.15);
+  --amoled-glass: rgba(0, 0, 0, 0.85);
+  --amoled-text: #f3f4f6;
+  --amoled-text-muted: #8a8a8a;
+  --amoled-text-heading: #ffffff;
+  --amoled-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.8);
+  --amoled-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.9);
+  --amoled-shadow-lg: 0 8px 32px rgba(0, 0, 0, 1);
+  --amoled-shadow-glow: 0 0 30px rgba(148, 112, 255, 0.1);
+
+  /* Common Status Colors (Semantic across themes) */
+  --color-success: #00e676;
+  --color-success-rgb: 0, 230, 118;
+  --color-warning: #ffb300;
+  --color-warning-rgb: 255, 179, 0;
+  --color-error: #ff3d00;
+  --color-error-rgb: 255, 61, 0;
+  --color-info: #00b0ff;
+  --color-info-rgb: 0, 176, 255;
+  --color-investment: #4caf50;
+  --color-savings: #82ca9d;
+  --color-expense: #ff7c7c;
+  --color-income: #82ca9d;
+}
+
+/* Base Semantic Setup mapping to actual theme */
+[data-theme="dark"], :root:not([data-theme]) {
+  --primary: var(--dark-primary);
+  --primary-rgb: var(--dark-primary-rgb);
+  --secondary: var(--dark-secondary);
+  --bg: var(--dark-bg);
+  --bg-mesh: var(--dark-bg-mesh);
+  --surface: var(--dark-surface);
+  --surface-elevated: var(--dark-surface-elevated);
+  --border: var(--dark-border);
+  --border-hover: var(--dark-border-hover);
+  --glass: var(--dark-glass);
+  --text: var(--dark-text);
+  --text-muted: var(--dark-text-muted);
+  --text-heading: var(--dark-text-heading);
+  --shadow-sm: var(--dark-shadow-sm);
+  --shadow-md: var(--dark-shadow-md);
+  --shadow-lg: var(--dark-shadow-lg);
+  --shadow-glow: var(--dark-shadow-glow);
+  --noise-opacity: 0.015;
+}
+
+[data-theme="light"] {
+  --primary: var(--light-primary);
+  --primary-rgb: var(--light-primary-rgb);
+  --secondary: var(--light-secondary);
+  --bg: var(--light-bg);
+  --bg-mesh: var(--light-bg-mesh);
+  --surface: var(--light-surface);
+  --surface-elevated: var(--light-surface-elevated);
+  --border: var(--light-border);
+  --border-hover: var(--light-border-hover);
+  --glass: var(--light-glass);
+  --text: var(--light-text);
+  --text-muted: var(--light-text-muted);
+  --text-heading: var(--light-text-heading);
+  --shadow-sm: var(--light-shadow-sm);
+  --shadow-md: var(--light-shadow-md);
+  --shadow-lg: var(--light-shadow-lg);
+  --shadow-glow: var(--light-shadow-glow);
+  --noise-opacity: 0.005;
+}
+
+[data-theme="amoled"] {
+  --primary: var(--amoled-primary);
+  --primary-rgb: var(--amoled-primary-rgb);
+  --secondary: var(--amoled-secondary);
+  --bg: var(--amoled-bg);
+  --bg-mesh: var(--amoled-bg-mesh);
+  --surface: var(--amoled-surface);
+  --surface-elevated: var(--amoled-surface-elevated);
+  --border: var(--amoled-border);
+  --border-hover: var(--amoled-border-hover);
+  --glass: var(--amoled-glass);
+  --text: var(--amoled-text);
+  --text-muted: var(--amoled-text-muted);
+  --text-heading: var(--amoled-text-heading);
+  --shadow-sm: var(--amoled-shadow-sm);
+  --shadow-md: var(--amoled-shadow-md);
+  --shadow-lg: var(--amoled-shadow-lg);
+  --shadow-glow: var(--amoled-shadow-glow);
+  --noise-opacity: 0;
+}
+
+/* Reset and Globals */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg);
+  background-image: var(--bg-mesh);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.5;
+  transition: background-color var(--transition-normal), color var(--transition-normal);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Typography styles */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--text-heading);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+input, button, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Background noise texture overlay */
+.noise-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  content: "";
+  opacity: var(--noise-opacity);
+  pointer-events: none;
+  z-index: 9999;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3联%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Smooth layout loading fade */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn var(--transition-normal) forwards;
+}

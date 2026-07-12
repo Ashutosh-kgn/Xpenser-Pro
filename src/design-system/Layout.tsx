@@ -1,0 +1,392 @@
+import React, { useEffect } from 'react';
+import { useStore } from '../store/useStore';
+import { db, seedDatabase } from '../db/db';
+import { CommandPalette } from './CommandPalette';
+import { AddTransactionModal } from '../features/transactions/AddTransactionModal';
+import { 
+  LayoutDashboard, 
+  TrendingUp, 
+  CreditCard, 
+  Sliders, 
+  Users, 
+  Bot, 
+  Award, 
+  Search, 
+  Plus, 
+  Flame, 
+  Sparkles,
+  Sun,
+  Moon,
+  Zap,
+  Settings,
+  History,
+  User
+} from 'lucide-react';
+import confetti from 'canvas-confetti';
+
+interface LayoutProps {
+  children: React.ReactNode;
+}
+
+export const Layout: React.FC<LayoutProps> = ({ children }) => {
+  const {
+    activeSection,
+    setActiveSection,
+    theme,
+    setTheme,
+    commandPaletteOpen,
+    setCommandPaletteOpen,
+    activeTransactionModal,
+    setActiveTransactionModal,
+    xp,
+    level,
+    streak,
+    syncProfileData
+  } = useStore();
+  // Sync profile details on mount
+  useEffect(() => {
+    syncProfileData();
+  }, [syncProfileData]);
+
+  // Global keyboard listener for Ctrl+K / Cmd+K
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen(!commandPaletteOpen);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [commandPaletteOpen, setCommandPaletteOpen]);
+
+  // Gamification Level-Up confetti animation
+  useEffect(() => {
+    const handleLevelUp = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const newLevel = customEvent.detail?.level;
+      
+      // Fire confetti burst!
+      confetti({
+        particleCount: 150,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ['#7e52ff', '#00f5d4', '#ffb300', '#ff3d00']
+      });
+
+      // Show alert or toast notification (simulation)
+      alert(`🎉 Level Up! You reached Level ${newLevel}! Keep spending smart and saving!`);
+    };
+
+    window.addEventListener('xpenser-level-up', handleLevelUp);
+    return () => window.removeEventListener('xpenser-level-up', handleLevelUp);
+  }, []);
+
+  const menuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+    { id: 'history', label: 'History', icon: <History size={18} /> },
+    { id: 'investments', label: 'Investments', icon: <TrendingUp size={18} /> },
+    { id: 'subscriptions', label: 'Subscriptions', icon: <CreditCard size={18} /> },
+    { id: 'budgets', label: 'Smart Budget', icon: <Sliders size={18} /> },
+    { id: 'family', label: 'Family Space', icon: <Users size={18} /> },
+    { id: 'ai', label: 'AI Coach', icon: <Bot size={18} /> },
+    { id: 'gamification', label: 'Gamification', icon: <Award size={18} /> },
+    { id: 'profile', label: 'Profile', icon: <User size={18} /> },
+    { id: 'settings', label: 'Settings', icon: <Settings size={18} /> }
+  ] as const;
+
+  const handleResetDb = async () => {
+    if (confirm('Are you sure you want to reset all database data to standard seed states?')) {
+      await db.transactions.clear();
+      await db.subscriptions.clear();
+      await db.investments.clear();
+      await db.goals.clear();
+      await db.userProfile.clear();
+      await seedDatabase();
+      await syncProfileData();
+      alert('Database restored successfully.');
+      window.location.reload();
+    }
+  };
+
+  return (
+    <>
+      <div className="noise-overlay" />
+      <div className="app-layout">
+        
+        {/* DESKTOP SIDEBAR */}
+        <aside className="app-sidebar">
+          <div 
+            onClick={() => setActiveSection('dashboard')}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px', 
+              marginBottom: 'var(--space-2xl)', 
+              paddingLeft: '8px',
+              cursor: 'pointer',
+              userSelect: 'none'
+            }}
+          >
+            <div style={{ background: 'var(--primary)', padding: '6px', borderRadius: '8px', display: 'flex', color: '#fff' }}>
+              <Zap size={20} fill="#fff" />
+            </div>
+            <h1 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700, letterSpacing: '-0.02em', background: 'linear-gradient(90deg, var(--text-heading), var(--primary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              Xpenser Pro
+            </h1>
+          </div>
+
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+            {menuItems.map(item => (
+              <button
+                key={item.id}
+                onClick={() => setActiveSection(item.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: 'none',
+                  background: activeSection === item.id ? 'rgba(var(--primary-rgb), 0.08)' : 'transparent',
+                  color: activeSection === item.id ? 'var(--primary)' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  fontWeight: activeSection === item.id ? 600 : 500,
+                  fontSize: '0.875rem',
+                  textAlign: 'left',
+                  transition: 'all var(--transition-fast)'
+                }}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            ))}
+          </nav>
+
+          {/* Sidebar Footer with Reset & Theme */}
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <button 
+              className="btn btn-ghost" 
+              onClick={() => setCommandPaletteOpen(true)}
+              style={{ justifyContent: 'flex-start', padding: '8px 12px', fontSize: '0.8125rem' }}
+            >
+              <Search size={16} />
+              <span>Command Center (⌘K)</span>
+            </button>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 12px' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Theme: {theme}</span>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <button onClick={() => setTheme('light')} style={{ background: 'transparent', border: 'none', color: theme === 'light' ? 'var(--primary)' : 'var(--text-muted)', cursor: 'pointer' }} title="Light mode"><Sun size={14} /></button>
+                <button onClick={() => setTheme('dark')} style={{ background: 'transparent', border: 'none', color: theme === 'dark' ? 'var(--primary)' : 'var(--text-muted)', cursor: 'pointer' }} title="Dark mode"><Moon size={14} /></button>
+                <button onClick={() => setTheme('amoled')} style={{ background: 'transparent', border: 'none', color: theme === 'amoled' ? 'var(--primary)' : 'var(--text-muted)', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }} title="AMOLED mode">A</button>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* MAIN DISPLAY AREA */}
+        <main className="app-main">
+          
+          {/* HEADER BAR */}
+          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-xl)', flexWrap: 'wrap', gap: '16px' }}>
+            
+            {/* Header Search Trigger */}
+            <div 
+              onClick={() => setCommandPaletteOpen(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                padding: '8px 16px',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                width: '100%',
+                maxWidth: '280px',
+                color: 'var(--text-muted)',
+                fontSize: '0.8125rem'
+              }}
+            >
+              <Search size={14} />
+              <span style={{ flex: 1 }}>Search Xpenser Pro...</span>
+              <span style={{ fontSize: '0.6875rem', background: 'var(--surface-elevated)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)' }}>⌘K</span>
+            </div>
+
+            {/* Profile Health details & actions */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              
+              {/* Gamification Indicator */}
+              <div 
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  padding: '6px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.8125rem'
+                }}
+              >
+                {/* Level / XP */}
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    Lv. {level}
+                    <Sparkles size={12} style={{ color: 'var(--color-warning)' }} />
+                  </span>
+                  <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>{xp % 250}/250 XP</span>
+                </div>
+                
+                {/* Visual Progress bar */}
+                <div style={{ width: '40px', height: '4px', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
+                  <div style={{ width: `${((xp % 250) / 250) * 100}%`, height: '100%', background: 'var(--primary)' }} />
+                </div>
+
+                {/* Streak */}
+                <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '12px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-warning)' }}>
+                  <Flame size={16} fill="var(--color-warning)" />
+                  <span style={{ fontWeight: 600 }}>{streak}d</span>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => setActiveTransactionModal('income')}
+                  style={{ padding: '8px 12px', fontSize: '0.8125rem' }}
+                >
+                  <Plus size={14} style={{ color: 'var(--color-success)' }} />
+                  <span>Income</span>
+                </button>
+                <button 
+                  className="btn btn-primary" 
+                  onClick={() => setActiveTransactionModal('expense')}
+                  style={{ padding: '8px 12px', fontSize: '0.8125rem' }}
+                >
+                  <Plus size={14} />
+                  <span>Expense</span>
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* PAGE CONTENT */}
+          <div className="fade-in" style={{ minHeight: 'calc(100vh - 220px)' }}>
+            {children}
+          </div>
+
+          {/* PAGE FOOTER */}
+          <footer 
+            style={{ 
+              borderTop: '1px solid var(--border)', 
+              marginTop: '48px', 
+              paddingTop: '24px', 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              flexWrap: 'wrap', 
+              gap: '16px', 
+              fontSize: '0.75rem', 
+              color: 'var(--text-muted)' 
+            }}
+          >
+            <span>Xpenser Pro v2.0.26 &bull; AI Financial Operating System</span>
+            <div style={{ display: 'flex', gap: '16px' }}>
+              <span>Sync: Cloud Decrypted (IndexedDB Local-First)</span>
+              <span>Security: Passkey Enforced</span>
+            </div>
+          </footer>
+        </main>
+
+        {/* MOBILE NAVIGATION BAR (PORTRAIT SCREEN BAR) */}
+        <nav 
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: '60px',
+            background: 'var(--surface)',
+            borderTop: '1px solid var(--border)',
+            display: 'none', // Shown only in CSS media queries on small screens
+            justifyContent: 'space-around',
+            alignItems: 'center',
+            zIndex: 1000,
+            paddingBottom: 'env(safe-area-inset-bottom)'
+          }}
+          className="mobile-bottom-nav"
+        >
+          {menuItems.slice(0, 4).map(item => (
+            <button
+              key={item.id}
+              onClick={() => setActiveSection(item.id)}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '2px',
+                background: 'transparent',
+                border: 'none',
+                color: activeSection === item.id ? 'var(--primary)' : 'var(--text-muted)',
+                cursor: 'pointer',
+                width: '60px'
+              }}
+            >
+              {item.icon}
+              <span style={{ fontSize: '0.625rem', fontWeight: activeSection === item.id ? 600 : 500 }}>
+                {item.label.split(' ')[0]}
+              </span>
+            </button>
+          ))}
+          <button
+            onClick={() => setActiveSection('ai')}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '2px',
+              background: 'transparent',
+              border: 'none',
+              color: activeSection === 'ai' ? 'var(--primary)' : 'var(--text-muted)',
+              cursor: 'pointer',
+              width: '60px'
+            }}
+          >
+            <Bot size={18} />
+            <span style={{ fontSize: '0.625rem', fontWeight: activeSection === 'ai' ? 600 : 500 }}>Coach</span>
+          </button>
+        </nav>
+
+        {/* CSS rules to handle Responsive Mobile Navigation */}
+        <style dangerouslySetInnerHTML={{ __html: `
+          @media (max-width: 1024px) {
+            .mobile-bottom-nav {
+              display: flex !important;
+            }
+          }
+        ` }} />
+
+        {/* OVERLAYS */}
+        <CommandPalette
+          isOpen={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          onNavigate={(sec) => setActiveSection(sec as any)}
+          onAddTransaction={(t) => setActiveTransactionModal(t)}
+          onToggleTheme={(th) => setTheme(th)}
+          onResetDb={handleResetDb}
+        />
+
+        <AddTransactionModal
+          isOpen={activeTransactionModal !== null}
+          type={activeTransactionModal}
+          onClose={() => setActiveTransactionModal(null)}
+        />
+
+      </div>
+    </>
+  );
+};
