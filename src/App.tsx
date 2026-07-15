@@ -3,6 +3,7 @@ import { useStore } from './store/useStore';
 import { seedDatabase } from './db/db';
 import { Layout } from './design-system/Layout';
 import { LoginView } from './features/auth/LoginView';
+import { MpinView } from './features/auth/MpinView';
 import { DashboardView } from './features/dashboard/DashboardView';
 import { InvestmentsView } from './features/investments/InvestmentsView';
 import { SubscriptionsView } from './features/subscriptions/SubscriptionsView';
@@ -23,7 +24,32 @@ function App() {
   const setFirebaseUser = useStore(state => state.setFirebaseUser);
   const toasts = useStore(state => state.toasts);
   const removeToast = useStore(state => state.removeToast);
+  
   const [dbReady, setDbReady] = useState(false);
+  const [isMpinUnlocked, setIsMpinUnlocked] = useState(false);
+
+  // Clear lock states if authenticated drops
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setIsMpinUnlocked(false);
+      localStorage.removeItem('xpenser_mpin');
+    }
+  }, [isAuthenticated]);
+
+  const handleLogout = async () => {
+    if (confirm('Are you sure you want to sign out and switch accounts?')) {
+      try {
+        const { signOut: firebaseSignOut } = await import('firebase/auth');
+        await firebaseSignOut(auth);
+      } catch (err) {
+        console.warn('Firebase signout bypassed:', err);
+      }
+      localStorage.removeItem('xpenser_auth');
+      localStorage.removeItem('xpenser_mpin');
+      setIsAuthenticated(false);
+      setIsMpinUnlocked(false);
+    }
+  };
 
   // Subscribe to Firebase Auth changes
   useEffect(() => {
@@ -96,6 +122,16 @@ function App() {
   // Auth Gate
   if (!isAuthenticated) {
     return <LoginView />;
+  }
+
+  // MPIN Lock Gate
+  if (!isMpinUnlocked) {
+    return (
+      <MpinView 
+        onUnlock={() => setIsMpinUnlocked(true)} 
+        onLogout={handleLogout} 
+      />
+    );
   }
 
   const renderView = () => {

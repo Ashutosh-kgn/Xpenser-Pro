@@ -1,8 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { db, seedDatabase } from '../db/db';
 import { CommandPalette } from './CommandPalette';
 import { AddTransactionModal } from '../features/transactions/AddTransactionModal';
+import { auth } from '../firebase/firebase';
 import { 
   LayoutDashboard, 
   TrendingUp, 
@@ -20,7 +21,10 @@ import {
   Zap,
   Settings,
   History,
-  User
+  User,
+  X,
+  Menu,
+  LogOut
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -43,6 +47,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     streak,
     syncProfileData
   } = useStore();
+
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   // Sync profile details on mount
   useEffect(() => {
     syncProfileData();
@@ -318,10 +325,18 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           }}
           className="mobile-bottom-nav"
         >
-          {menuItems.slice(0, 4).map(item => (
+          {[
+            { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+            { id: 'history', label: 'History', icon: <History size={18} /> },
+            { id: 'ai', label: 'Coach', icon: <Bot size={18} /> },
+            { id: 'profile', label: 'Profile', icon: <User size={18} /> },
+          ].map(item => (
             <button
               key={item.id}
-              onClick={() => setActiveSection(item.id)}
+              onClick={() => {
+                setActiveSection(item.id as any);
+                setIsMobileMenuOpen(false);
+              }}
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -337,12 +352,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             >
               {item.icon}
               <span style={{ fontSize: '0.625rem', fontWeight: activeSection === item.id ? 600 : 500 }}>
-                {item.label.split(' ')[0]}
+                {item.label}
               </span>
             </button>
           ))}
           <button
-            onClick={() => setActiveSection('ai')}
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             style={{
               display: 'flex',
               flexDirection: 'column',
@@ -351,21 +366,143 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               gap: '2px',
               background: 'transparent',
               border: 'none',
-              color: activeSection === 'ai' ? 'var(--primary)' : 'var(--text-muted)',
+              color: isMobileMenuOpen ? 'var(--primary)' : 'var(--text-muted)',
               cursor: 'pointer',
               width: '60px'
             }}
           >
-            <Bot size={18} />
-            <span style={{ fontSize: '0.625rem', fontWeight: activeSection === 'ai' ? 600 : 500 }}>Coach</span>
+            <Menu size={18} />
+            <span style={{ fontSize: '0.625rem', fontWeight: isMobileMenuOpen ? 600 : 500 }}>Menu</span>
           </button>
         </nav>
+
+        {/* MOBILE SLIDE-UP DRAWER OVERLAY */}
+        {isMobileMenuOpen && (
+          <div 
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(9, 9, 11, 0.7)',
+              backdropFilter: 'blur(8px)',
+              zIndex: 2000,
+              display: 'flex',
+              alignItems: 'flex-end',
+              justifyContent: 'center'
+            }}
+            onClick={() => setIsMobileMenuOpen(false)}
+          >
+            <div 
+              style={{
+                width: '100%',
+                maxWidth: '480px',
+                background: 'var(--surface)',
+                borderTop: '1px solid var(--border)',
+                borderTopLeftRadius: '20px',
+                borderTopRightRadius: '20px',
+                padding: '24px 20px 40px 20px',
+                boxSizing: 'border-box',
+                animation: 'slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '20px'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0, color: 'var(--text-heading)' }}>Navigation Menu</h3>
+                <button 
+                  onClick={() => setIsMobileMenuOpen(false)} 
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '4px' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Grid of All Sections */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                {menuItems.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setActiveSection(item.id);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '12px 8px',
+                      borderRadius: '12px',
+                      border: '1px solid var(--border)',
+                      background: activeSection === item.id ? 'rgba(var(--primary-rgb), 0.08)' : 'var(--surface-elevated)',
+                      color: activeSection === item.id ? 'var(--primary)' : 'var(--text-heading)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      textAlign: 'center'
+                    }}
+                  >
+                    <div style={{ color: activeSection === item.id ? 'var(--primary)' : 'var(--text-muted)' }}>{item.icon}</div>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Footer action */}
+              <button 
+                onClick={async () => {
+                  setIsMobileMenuOpen(false);
+                  if (confirm('Are you sure you want to sign out?')) {
+                    try {
+                      const { signOut: firebaseSignOut } = await import('firebase/auth');
+                      await firebaseSignOut(auth);
+                    } catch (err) {
+                      console.warn('Firebase signout bypassed:', err);
+                    }
+                    localStorage.removeItem('xpenser_auth');
+                    window.location.reload();
+                  }
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '14px',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(255, 61, 0, 0.2)',
+                  background: 'rgba(255, 61, 0, 0.05)',
+                  color: 'var(--color-error)',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  fontSize: '0.875rem'
+                }}
+              >
+                <LogOut size={16} />
+                <span>Logout Session</span>
+              </button>
+
+            </div>
+          </div>
+        )}
 
         {/* CSS rules to handle Responsive Mobile Navigation */}
         <style dangerouslySetInnerHTML={{ __html: `
           @media (max-width: 1024px) {
             .mobile-bottom-nav {
               display: flex !important;
+            }
+          }
+          @keyframes slideUp {
+            from {
+              transform: translateY(100%);
+            }
+            to {
+              transform: translateY(0);
             }
           }
         ` }} />

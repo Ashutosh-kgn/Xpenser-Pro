@@ -345,93 +345,6 @@ export const LoginView: React.FC = () => {
   return (
     <div className="login-split-container">
       
-      {/* LEFT COLUMN: Brand Experience Panel */}
-      <div className="login-showcase-panel">
-        <div className="mesh-glow-left" />
-        
-        {/* Float drifting symbols */}
-        <div className="floating-bubble bubble-1">₹</div>
-        <div className="floating-bubble bubble-2">$</div>
-        <div className="floating-bubble bubble-3">€</div>
-        <div className="floating-bubble bubble-4">£</div>
-        
-        <div className="showcase-content-layout">
-          {/* Logo Header */}
-          <div className="brand-logo-row">
-            <div className="logo-sparkle-badge">
-              <Zap size={22} fill="#ffffff" />
-            </div>
-            <span className="brand-title-text">XPENSER PRO</span>
-            <span className="badge badge-primary font-mono-tag">v2.0</span>
-          </div>
-
-          {/* Core Tagline / Illustration */}
-          <div className="middle-illustration-box">
-            <h1 className="h1-headline-showcase">
-              Your AI Financial<br />Operating System.
-            </h1>
-            
-            {/* Visual Glass Bento Illustration */}
-            <div className="glass-illustration-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <div className="dot-decor d-red" />
-                  <div className="dot-decor d-yellow" />
-                  <div className="dot-decor d-green" />
-                </div>
-                <span style={{ fontSize: '0.625rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace' }}>CASH_FLOW.SH</span>
-              </div>
-              
-              {/* Simulated Chart Bars */}
-              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: '90px', padding: '10px 0', borderBottom: '1px dashed rgba(255,255,255,0.1)' }}>
-                <div className="illus-bar bar-1" style={{ height: '35%' }} />
-                <div className="illus-bar bar-2" style={{ height: '60%' }} />
-                <div className="illus-bar bar-3" style={{ height: '45%' }} />
-                <div className="illus-bar bar-4" style={{ height: '90%' }} />
-                <div className="illus-bar bar-5" style={{ height: '70%' }} />
-                <div className="illus-bar bar-6" style={{ height: '80%' }} />
-              </div>
-
-              {/* Floating Statistic Badge inside illustration */}
-              <div className="floating-illus-badge">
-                <div className="ai-brief-spark">🤖</div>
-                <div>
-                  <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.5)', display: 'block' }}>Monthly savings rate</span>
-                  <span style={{ fontSize: '0.8125rem', color: '#00f5d4', fontWeight: 700 }}>+₹6,250 on track</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Feature Highlights Grid */}
-          <div className="feature-bullets-grid">
-            <div className="bullet-badge-item">
-              <span className="bullet-bullet">🔒</span>
-              <span className="bullet-label">Secure Authentication</span>
-            </div>
-            <div className="bullet-badge-item">
-              <span className="bullet-bullet">☁</span>
-              <span className="bullet-label">Cloud Backup</span>
-            </div>
-            <div className="bullet-badge-item">
-              <span className="bullet-bullet">🤖</span>
-              <span className="bullet-label">AI Powered</span>
-            </div>
-            <div className="bullet-badge-item">
-              <span className="bullet-bullet">📊</span>
-              <span className="bullet-label">Real-time Analytics</span>
-            </div>
-          </div>
-
-          {/* Trust Footer */}
-          <div className="trust-footer-row">
-            <span>Enterprise Encrypted Session</span>
-            <span>&bull;</span>
-            <span>Local-First Core</span>
-          </div>
-        </div>
-      </div>
-
       {/* RIGHT COLUMN: Glass Authentication card */}
       <div className="login-auth-panel">
         <div className={`auth-card-wrapper ${shake ? 'error-shake' : ''}`}>
@@ -961,52 +874,37 @@ export const LoginView: React.FC = () => {
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
-        /* SPLIT SCREEN VISUAL SHOWCASE STYLES */
         .login-split-container {
           display: flex;
+          justify-content: center;
+          align-items: center;
           min-height: 100vh;
-          background: var(--bg);
-          overflow: hidden;
+          background: url('/login-bg.png') no-repeat center center / cover;
           width: 100%;
-        }
-
-        .login-showcase-panel {
-          flex: 1.1;
-          background: #09090b;
-          border-right: 1px solid var(--border);
-          position: relative;
-          display: flex;
-          overflow: hidden;
-        }
-
-        .mesh-glow-left {
-          position: absolute;
-          width: 600px;
-          height: 600px;
-          background: radial-gradient(circle, rgba(126, 82, 255, 0.15) 0%, transparent 70%);
-          top: -100px;
-          left: -100px;
-          filter: blur(50px);
-          pointer-events: none;
-          z-index: 0;
-        }
-
-        .showcase-content-layout {
-          position: relative;
-          z-index: 2;
-          width: 100%;
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          padding: 48px;
+          padding: 24px 16px;
           box-sizing: border-box;
+          overflow-y: auto;
+          position: relative;
         }
 
-        .brand-logo-row {
+        .login-auth-panel {
           display: flex;
           align-items: center;
-          gap: 12px;
+          justify-content: center;
+          width: 100%;
+          max-width: 440px;
+        }
+
+        .auth-card-wrapper {
+          width: 100%;
+        }
+
+        .mobile-brand-banner {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          margin-bottom: 24px;
         }
 
         .logo-sparkle-badge {
@@ -1016,166 +914,6 @@ export const LoginView: React.FC = () => {
           color: #ffffff;
           display: flex;
           box-shadow: 0 4px 15px rgba(var(--primary-rgb), 0.3);
-        }
-
-        .brand-title-text {
-          font-size: 1.125rem;
-          fontWeight: 800;
-          color: #ffffff;
-          letter-spacing: -0.02em;
-        }
-
-        .font-mono-tag {
-          font-family: var(--font-mono);
-          font-size: 0.625rem;
-          padding: 2px 6px;
-        }
-
-        .middle-illustration-box {
-          margin: 40px 0;
-        }
-
-        .h1-headline-showcase {
-          font-size: 2.5rem;
-          font-weight: 800;
-          color: #ffffff;
-          letter-spacing: -0.03em;
-          line-height: 1.2;
-          margin: 0 0 28px 0;
-        }
-
-        .glass-illustration-card {
-          background: rgba(255,255,255,0.03);
-          backdrop-filter: blur(15px);
-          -webkit-backdrop-filter: blur(15px);
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 16px;
-          padding: 16px;
-          width: 100%;
-          max-width: 380px;
-          box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-          position: relative;
-          animation: floatAnimation 6s ease-in-out infinite;
-        }
-
-        @keyframes floatAnimation {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-8px); }
-        }
-
-        .dot-decor {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-        }
-        .d-red { background: #ff5f56; }
-        .d-yellow { background: #ffbd2e; }
-        .d-green { background: #27c93f; }
-
-        .illus-bar {
-          width: 14%;
-          border-radius: 4px 4px 0 0;
-          background: rgba(255,255,255,0.05);
-          transition: background 0.3s;
-        }
-        .bar-4 {
-          background: var(--primary) !important;
-          box-shadow: 0 0 15px rgba(var(--primary-rgb), 0.5);
-        }
-        .bar-2, .bar-5, .bar-6 {
-          background: rgba(255,255,255,0.15);
-        }
-
-        .floating-illus-badge {
-          position: absolute;
-          bottom: -15px;
-          right: -20px;
-          background: #0f0f12;
-          border: 1px solid rgba(255,255,255,0.12);
-          padding: 8px 12px;
-          border-radius: 8px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-        }
-
-        .ai-brief-spark {
-          background: rgba(0, 245, 212, 0.1);
-          padding: 4px;
-          border-radius: 6px;
-          display: flex;
-        }
-
-        .feature-bullets-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 16px;
-          max-width: 440px;
-        }
-
-        .bullet-badge-item {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          background: rgba(255, 255, 255, 0.02);
-          border: 1px solid rgba(255, 255, 255, 0.05);
-          padding: 10px 14px;
-          border-radius: 8px;
-        }
-
-        .bullet-label {
-          font-size: 0.8125rem;
-          color: rgba(255,255,255,0.8);
-          font-weight: 500;
-        }
-
-        .trust-footer-row {
-          display: flex;
-          gap: 12px;
-          font-size: 0.75rem;
-          color: rgba(255,255,255,0.4);
-        }
-
-        /* Drifting bubble animations */
-        .floating-bubble {
-          position: absolute;
-          color: rgba(255,255,255,0.06);
-          font-family: var(--font-sans);
-          font-weight: 800;
-          user-select: none;
-          pointer-events: none;
-          z-index: 1;
-        }
-        .bubble-1 { font-size: 5rem; top: 15%; right: 10%; animation: drift 14s ease-in-out infinite; }
-        .bubble-2 { font-size: 3.5rem; bottom: 25%; left: 8%; animation: drift 10s ease-in-out infinite 2s; }
-        .bubble-3 { font-size: 4rem; top: 40%; right: 40%; animation: drift 12s ease-in-out infinite 1s; }
-        .bubble-4 { font-size: 3rem; bottom: 8%; right: 15%; animation: drift 9s ease-in-out infinite 3s; }
-
-        @keyframes drift {
-          0%, 100% { transform: translate(0, 0) rotate(0deg); }
-          50% { transform: translate(10px, -15px) rotate(8deg); }
-        }
-
-        /* RIGHT SIDE: Auth Panel styling */
-        .login-auth-panel {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 24px;
-          box-sizing: border-box;
-        }
-
-        .auth-card-wrapper {
-          width: 100%;
-          max-width: 410px;
-        }
-
-        .mobile-brand-banner {
-          display: none;
-          text-align: center;
-          margin-bottom: 20px;
         }
 
         .input-err-msg {
@@ -1305,27 +1043,6 @@ export const LoginView: React.FC = () => {
           0%, 100% { transform: translateX(0); }
           20%, 60% { transform: translateX(-8px); }
           40%, 80% { transform: translateX(8px); }
-        }
-
-        /* RESPONSIVE SCALING BREAKPOINTS */
-        @media (max-width: 1024px) {
-          .login-split-container {
-            flex-direction: column;
-          }
-          .login-showcase-panel {
-            display: none;
-          }
-          .mobile-brand-banner {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-          }
-          .login-auth-panel {
-            padding: 16px;
-            min-height: 100vh;
-            background-color: var(--bg);
-            background-image: var(--bg-mesh);
-          }
         }
       ` }} />
 

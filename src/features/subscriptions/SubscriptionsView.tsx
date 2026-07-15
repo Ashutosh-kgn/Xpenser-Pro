@@ -46,24 +46,6 @@ export const SubscriptionsView: React.FC = () => {
   // Load subscriptions from Dexie
   const subscriptions = useLiveQuery(() => db.subscriptions.toArray()) || [];
 
-  // Seed default subscriptions if none exist, so the user sees a premium dashboard immediately
-  useEffect(() => {
-    const seedDefaultSubs = async () => {
-      const count = await db.subscriptions.count();
-      if (count === 0) {
-        const defaults: Subscription[] = [
-          { name: 'Netflix Premium', amount: 649, billingCycle: 'monthly', nextBillingDate: '2026-07-24', status: 'active', category: 'Entertainment', paymentMethod: 'Visa Ending 4242', isUnused: false },
-          { name: 'Spotify Individual', amount: 119, billingCycle: 'monthly', nextBillingDate: '2026-08-15', status: 'active', category: 'Entertainment', paymentMethod: 'Mastercard Ending 8821', isUnused: false },
-          { name: 'ChatGPT Plus', amount: 1999, billingCycle: 'monthly', nextBillingDate: '2026-07-23', status: 'active', category: 'AI Tools', paymentMethod: 'Apple Pay', isUnused: false },
-          { name: 'Google One', amount: 1300, billingCycle: 'yearly', nextBillingDate: '2026-07-25', status: 'active', category: 'Cloud Storage', paymentMethod: 'Google Pay', isUnused: false },
-          { name: 'Adobe Creative Cloud', amount: 4230, billingCycle: 'monthly', nextBillingDate: '2026-08-01', status: 'active', category: 'Productivity', paymentMethod: 'Visa Ending 4242', isUnused: true }
-        ];
-        await db.subscriptions.bulkAdd(defaults);
-      }
-    };
-    seedDefaultSubs();
-  }, []);
-
   // Total Overhead Cost calculations
   const activeSubs = subscriptions.filter(s => s.status === 'active');
   const monthlyCost = activeSubs.reduce((sum, s) => {

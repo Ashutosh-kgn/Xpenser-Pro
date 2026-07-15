@@ -26,6 +26,7 @@ export const SettingsView: React.FC = () => {
   const addXp = useStore(state => state.addXp);
   const setIsAuthenticated = useStore(state => state.setIsAuthenticated);
   const syncProfileData = useStore(state => state.syncProfileData);
+  const addToast = useStore(state => state.addToast);
 
   // States
   const [loading, setLoading] = useState(false);
@@ -34,21 +35,64 @@ export const SettingsView: React.FC = () => {
 
   // Profile preferences fields
   const [currency, setCurrency] = useState('INR (₹)');
-  const [accentColor, setAccentColor] = useState('purple');
-  const [fontFamily, setFontFamily] = useState('Inter');
-  const [animationLevel, setAnimationLevel] = useState('full');
+  const [accentColor, setAccentColor] = useState(() => localStorage.getItem('settings_accentColor') || 'purple');
+  const [fontFamily, setFontFamily] = useState(() => localStorage.getItem('settings_fontFamily') || 'Inter');
+  const [animationLevel, setAnimationLevel] = useState(() => localStorage.getItem('settings_animationLevel') || 'full');
   
   // Custom triggers
-  const [is2FAEnabled, setIs2FAEnabled] = useState(false);
-  const [isBiometricEnabled, setIsBiometricEnabled] = useState(true);
-  const [isAIAssistantEnabled, setIsAIAssistantEnabled] = useState(true);
-  const [aiPersonality, setAiPersonality] = useState('friendly');
+  const [is2FAEnabled, setIs2FAEnabled] = useState(() => localStorage.getItem('settings_is2FAEnabled') === 'true');
+  const [isBiometricEnabled, setIsBiometricEnabled] = useState(() => localStorage.getItem('settings_isBiometricEnabled') !== 'false');
+  const [isAIAssistantEnabled, setIsAIAssistantEnabled] = useState(() => localStorage.getItem('settings_isAIAssistantEnabled') !== 'false');
+  const [aiPersonality, setAiPersonality] = useState(() => localStorage.getItem('settings_aiPersonality') || 'friendly');
   
-  // Device sessions list
-  const [linkedDevices, setLinkedDevices] = useState([
-    { id: 'dev-1', name: 'iPhone 15 Pro Max', lastSync: 'Active Now', status: 'Active', os: 'iOS 17.5' },
-    { id: 'dev-2', name: 'MacBook Pro 16"', lastSync: '2 hours ago', status: 'Active', os: 'macOS Sonoma' }
-  ]);
+  // Notifications tab fields
+  const [pushNotifications, setPushNotifications] = useState(() => localStorage.getItem('settings_pushNotifications') !== 'false');
+  const [emailAlerts, setEmailAlerts] = useState(() => localStorage.getItem('settings_emailAlerts') !== 'false');
+  const [subscriptionRenewals, setSubscriptionRenewals] = useState(() => localStorage.getItem('settings_subscriptionRenewals') !== 'false');
+  const [weeklySummaries, setWeeklySummaries] = useState(() => localStorage.getItem('settings_weeklySummaries') !== 'false');
+
+  // Device sessions list parser
+  const detectCurrentDevice = () => {
+    const ua = navigator.userAgent;
+    let deviceName = 'Browser Session';
+    let osName = 'Unknown OS';
+    
+    if (ua.includes('Win')) osName = 'Windows';
+    else if (ua.includes('Mac')) osName = 'macOS';
+    else if (ua.includes('X11') || ua.includes('Linux')) osName = 'Linux';
+    else if (ua.includes('Android')) osName = 'Android';
+    else if (ua.includes('iPhone') || ua.includes('iPad')) osName = 'iOS';
+    
+    if (ua.includes('Chrome') && !ua.includes('Chromium') && !ua.includes('Edg')) deviceName = 'Google Chrome';
+    else if (ua.includes('Safari') && !ua.includes('Chrome') && !ua.includes('Chromium')) deviceName = 'Apple Safari';
+    else if (ua.includes('Firefox')) deviceName = 'Mozilla Firefox';
+    else if (ua.includes('Edg')) deviceName = 'Microsoft Edge';
+    
+    return {
+      id: 'current-device',
+      name: `${deviceName} on ${osName} (This Device)`,
+      lastSync: 'Active Now',
+      status: 'Active',
+      os: osName
+    };
+  };
+
+  const [linkedDevices, setLinkedDevices] = useState(() => {
+    const currentDevice = detectCurrentDevice();
+    const storedDevices = localStorage.getItem('settings_linkedDevices');
+    if (storedDevices) {
+      try {
+        const parsed = JSON.parse(storedDevices);
+        const filtered = parsed.filter((d: any) => d.id !== 'current-device');
+        return [currentDevice, ...filtered];
+      } catch (e) {
+        // Fallback
+      }
+    }
+    return [
+      currentDevice
+    ];
+  });
 
   // Live DB stats
   const profile = useLiveQuery(() => db.userProfile.get('profile'));
@@ -56,6 +100,38 @@ export const SettingsView: React.FC = () => {
   const subCount = useLiveQuery(() => db.subscriptions.count()) || 0;
   const invCount = useLiveQuery(() => db.investments.count()) || 0;
   const goalCount = useLiveQuery(() => db.goals.count()) || 0;
+
+  // Apply visual preferences dynamically on change
+  useEffect(() => {
+    // 1. Accent color application
+    const colorMap: Record<string, string> = {
+      purple: '#7e52ff',
+      blue: '#00b0ff',
+      emerald: '#00f5d4',
+      orange: '#ff3d00'
+    };
+    const primaryRgbMap: Record<string, string> = {
+      purple: '126, 82, 255',
+      blue: '0, 176, 255',
+      emerald: '0, 245, 212',
+      orange: '255, 61, 0'
+    };
+    
+    const primaryColor = colorMap[accentColor] || colorMap.purple;
+    const primaryRgb = primaryRgbMap[accentColor] || primaryRgbMap.purple;
+    
+    document.documentElement.style.setProperty('--primary', primaryColor);
+    document.documentElement.style.setProperty('--primary-rgb', primaryRgb);
+
+    // 2. Font family application
+    const fontMap: Record<string, string> = {
+      'Inter': 'var(--font-sans)',
+      'Geist': 'var(--font-mono)',
+      'SF Pro': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+    };
+    const selectedFont = fontMap[fontFamily] || fontMap.Inter;
+    document.documentElement.style.setProperty('--font-sans', selectedFont);
+  }, [accentColor, fontFamily]);
 
   useEffect(() => {
     if (profile) {
@@ -70,30 +146,77 @@ export const SettingsView: React.FC = () => {
     await new Promise(resolve => setTimeout(resolve, 500));
     await db.userProfile.update('profile', { currency });
     await addXp(20);
-    alert('🎨 System preferences and currency successfully updated! +20 XP');
+    addToast('🎨 Financial rules and currency successfully updated! +20 XP', 'success');
     setLoading(false);
   };
 
   const handleResetSystem = async () => {
-    if (confirm('⚠️ WARNING: This will permanently wipe all custom transactions, goals, investments, and settings, and restore Xpenser Pro to default seed values. Do you want to proceed?')) {
-      setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      await db.transactions.clear();
-      await db.subscriptions.clear();
-      await db.investments.clear();
-      await db.goals.clear();
-      await db.userProfile.clear();
-      
-      localStorage.removeItem('xpenser_auth');
-      alert('System reset successfully. Xpenser Pro has been restored to factory seed states.');
+    const user = auth.currentUser;
+    
+    const password = prompt('⚠️ SECURITY VERIFICATION: Please enter your account password to verify workspace reset:');
+    if (password === null) return; // user cancelled
+    
+    if (!password) {
+      alert('❌ Password cannot be empty.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (user && user.email) {
+        const { EmailAuthProvider, reauthenticateWithCredential } = await import('firebase/auth');
+        const credential = EmailAuthProvider.credential(user.email, password);
+        await reauthenticateWithCredential(user, credential);
+      } else {
+        // Offline developer reauth check length / mock password verification
+        if (password.length < 8) {
+          throw new Error('Verification failed. Password must be at least 8 characters.');
+        }
+      }
+
+      if (confirm('⚠️ FINAL WARNING: This will permanently wipe all transactions, budgets, subscriptions, investments, goals, and local system preferences. Do you want to proceed?')) {
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        await db.transactions.clear();
+        await db.subscriptions.clear();
+        await db.investments.clear();
+        await db.goals.clear();
+        await db.userProfile.clear();
+        
+        localStorage.removeItem('xpenser_auth');
+        localStorage.removeItem('settings_accentColor');
+        localStorage.removeItem('settings_fontFamily');
+        localStorage.removeItem('settings_animationLevel');
+        localStorage.removeItem('settings_is2FAEnabled');
+        localStorage.removeItem('settings_isBiometricEnabled');
+        localStorage.removeItem('settings_isAIAssistantEnabled');
+        localStorage.removeItem('settings_aiPersonality');
+        localStorage.removeItem('settings_pushNotifications');
+        localStorage.removeItem('settings_emailAlerts');
+        localStorage.removeItem('settings_subscriptionRenewals');
+        localStorage.removeItem('settings_weeklySummaries');
+        localStorage.removeItem('settings_linkedDevices');
+        
+        alert('System reset successfully. Xpenser Pro has been restored to default factory states.');
+        setLoading(false);
+        window.location.reload();
+      }
+    } catch (err: any) {
+      console.error(err);
+      let errMsg = 'Incorrect password.';
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        errMsg = 'Incorrect password.';
+      } else if (err.message) {
+        errMsg = err.message;
+      }
+      alert(`❌ Reset Authorization Failed: ${errMsg}`);
+    } finally {
       setLoading(false);
-      window.location.reload();
     }
   };
 
   const handleMockBackup = () => {
-    alert('Simulating database JSON export... Backup package "xpenser_os_backup.json" downloaded successfully! +10 XP earned.');
+    alert('Simulating database JSON export... Backup package "xpenser_pro_backup.json" downloaded successfully! +10 XP earned.');
     addXp(10);
   };
 
@@ -111,8 +234,14 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleRevokeDevice = (deviceId: string, deviceName: string) => {
+    if (deviceId === 'current-device') {
+      alert('❌ Cannot revoke active session of the current device. Please use logout instead.');
+      return;
+    }
     if (confirm(`Are you sure you want to log out and revoke access for ${deviceName}?`)) {
-      setLinkedDevices(prev => prev.filter(d => d.id !== deviceId));
+      const updated = linkedDevices.filter(d => d.id !== deviceId);
+      setLinkedDevices(updated);
+      localStorage.setItem('settings_linkedDevices', JSON.stringify(updated));
       addXp(15);
       alert(`Access revoked for ${deviceName}. Earned +15 XP for managing session security!`);
     }
@@ -202,7 +331,7 @@ export const SettingsView: React.FC = () => {
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div>
             <h2 style={{ fontSize: '1.75rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em', color: 'var(--text-heading)' }}>
-              System Settings
+              Settings
             </h2>
             <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
               Manage accounts, visualization preferences, cloud backups, and biometric security metrics.
@@ -211,7 +340,7 @@ export const SettingsView: React.FC = () => {
 
           <Button variant="secondary" onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <LogOut size={14} />
-            <span>Logout & Lock Session</span>
+            <span>Logout</span>
           </Button>
         </div>
       </Card>
@@ -358,7 +487,18 @@ export const SettingsView: React.FC = () => {
                     <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-heading)', display: 'block' }}>Two-Factor Authentication (2FA)</span>
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Require email verification code on logins</span>
                   </div>
-                  <input type="checkbox" checked={is2FAEnabled} onChange={(e) => setIs2FAEnabled(e.target.checked)} style={{ width: '38px', height: '20px', cursor: 'pointer' }} />
+                  <label className="switch">
+                    <input 
+                      type="checkbox" 
+                      checked={is2FAEnabled} 
+                      onChange={(e) => {
+                        setIs2FAEnabled(e.target.checked);
+                        localStorage.setItem('settings_is2FAEnabled', String(e.target.checked));
+                        addToast(`🔒 2FA ${e.target.checked ? 'Enabled' : 'Disabled'}`, 'info');
+                      }} 
+                    />
+                    <span className="slider"></span>
+                  </label>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', borderBottom: '1px solid var(--border)' }}>
@@ -366,7 +506,18 @@ export const SettingsView: React.FC = () => {
                     <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-heading)', display: 'block' }}>Passkey Biometric Login</span>
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Enable Windows Hello / Apple FaceID simulations</span>
                   </div>
-                  <input type="checkbox" checked={isBiometricEnabled} onChange={(e) => setIsBiometricEnabled(e.target.checked)} style={{ width: '38px', height: '20px', cursor: 'pointer' }} />
+                  <label className="switch">
+                    <input 
+                      type="checkbox" 
+                      checked={isBiometricEnabled} 
+                      onChange={(e) => {
+                        setIsBiometricEnabled(e.target.checked);
+                        localStorage.setItem('settings_isBiometricEnabled', String(e.target.checked));
+                        addToast(`🧬 Biometrics ${e.target.checked ? 'Enabled' : 'Disabled'}`, 'info');
+                      }} 
+                    />
+                    <span className="slider"></span>
+                  </label>
                 </div>
 
                 {/* Score */}
@@ -452,7 +603,18 @@ export const SettingsView: React.FC = () => {
                     <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-heading)', display: 'block' }}>Enable AI Assistant (Coach)</span>
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Generate daily cash flow reviews and brief logs</span>
                   </div>
-                  <input type="checkbox" checked={isAIAssistantEnabled} onChange={(e) => setIsAIAssistantEnabled(e.target.checked)} style={{ width: '38px', height: '20px', cursor: 'pointer' }} />
+                  <label className="switch">
+                    <input 
+                      type="checkbox" 
+                      checked={isAIAssistantEnabled} 
+                      onChange={(e) => {
+                        setIsAIAssistantEnabled(e.target.checked);
+                        localStorage.setItem('settings_isAIAssistantEnabled', String(e.target.checked));
+                        addToast(`🤖 AI Coach ${e.target.checked ? 'Enabled' : 'Disabled'}`, 'info');
+                      }} 
+                    />
+                    <span className="slider"></span>
+                  </label>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', borderBottom: '1px solid var(--border)' }}>
@@ -460,13 +622,23 @@ export const SettingsView: React.FC = () => {
                     <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-heading)', display: 'block' }}>Receipt OCR Parser</span>
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Extract transaction metrics from upload receipts automatically</span>
                   </div>
-                  <input type="checkbox" defaultChecked style={{ width: '38px', height: '20px', cursor: 'pointer' }} />
+                  <label className="switch">
+                    <input 
+                      type="checkbox" 
+                      defaultChecked 
+                    />
+                    <span className="slider"></span>
+                  </label>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label">AI Personality Tone</label>
-                    <select value={aiPersonality} onChange={(e) => setAiPersonality(e.target.value)} className="input-field" style={{ marginTop: '8px' }}>
+                    <select value={aiPersonality} onChange={(e) => {
+                      setAiPersonality(e.target.value);
+                      localStorage.setItem('settings_aiPersonality', e.target.value);
+                      addToast('🧠 AI Tone updated!', 'success');
+                    }} className="input-field" style={{ marginTop: '8px' }}>
                       <option value="professional">Professional Financial Advisor</option>
                       <option value="friendly">Friendly & Gamified Mascots</option>
                       <option value="minimal">Minimal & Strict Alerts</option>
@@ -492,17 +664,28 @@ export const SettingsView: React.FC = () => {
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {[
-                  { id: 'push', label: 'Push App Notifications', desc: 'Instantly notify on budget limit reach' },
-                  { id: 'email', label: 'Registered Email Alerts', desc: 'Dispatches monthly carry-forward reports and receipts' },
-                  { id: 'renewals', label: 'Subscription Renewals', desc: 'Sends renewal timeline logs 3 days before debits' },
-                  { id: 'weekly', label: 'Weekly Summary briefs', desc: 'Compile active savings rate stats on Sunday' }
+                  { id: 'push', label: 'Push App Notifications', desc: 'Instantly notify on budget limit reach', checked: pushNotifications, setter: setPushNotifications },
+                  { id: 'email', label: 'Registered Email Alerts', desc: 'Dispatches monthly carry-forward reports and receipts', checked: emailAlerts, setter: setEmailAlerts },
+                  { id: 'renewals', label: 'Subscription Renewals', desc: 'Sends renewal timeline logs 3 days before debits', checked: subscriptionRenewals, setter: setSubscriptionRenewals },
+                  { id: 'weekly', label: 'Weekly Summary briefs', desc: 'Compile active savings rate stats on Sunday', checked: weeklySummaries, setter: setWeeklySummaries }
                 ].map((item, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: idx === 3 ? 'none' : '1px solid var(--border)' }}>
                     <div>
                       <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-heading)', display: 'block' }}>{item.label}</span>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.desc}</span>
                     </div>
-                    <input type="checkbox" defaultChecked style={{ width: '38px', height: '20px', cursor: 'pointer' }} />
+                    <label className="switch">
+                      <input 
+                        type="checkbox" 
+                        checked={item.checked} 
+                        onChange={(e) => {
+                          item.setter(e.target.checked);
+                          localStorage.setItem(`settings_${item.id}Notifications`, String(e.target.checked));
+                          addToast(`🔔 ${item.label} ${e.target.checked ? 'Enabled' : 'Disabled'}`, 'success');
+                        }} 
+                      />
+                      <span className="slider"></span>
+                    </label>
                   </div>
                 ))}
               </div>
@@ -683,6 +866,55 @@ export const SettingsView: React.FC = () => {
           </div>
         )}
       </Card>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        /* Toggle Switch (Scroll Button) Styling */
+        .switch {
+          position: relative;
+          display: inline-block;
+          width: 44px;
+          height: 22px;
+          flex-shrink: 0;
+        }
+        .switch input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+        }
+        .slider {
+          position: absolute;
+          cursor: pointer;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: var(--border);
+          transition: .3s cubic-bezier(0.16, 1, 0.3, 1);
+          border-radius: 22px;
+        }
+        .slider:before {
+          position: absolute;
+          content: "";
+          height: 16px;
+          width: 16px;
+          left: 3px;
+          bottom: 3px;
+          background-color: #ffffff;
+          transition: .3s cubic-bezier(0.16, 1, 0.3, 1);
+          border-radius: 50%;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        input:checked + .slider {
+          background-color: var(--primary);
+        }
+        input:checked + .slider:before {
+          transform: translateX(22px);
+        }
+        
+        .hover-highlight:hover {
+          background: rgba(var(--primary-rgb), 0.04) !important;
+        }
+      ` }} />
 
     </div>
   );

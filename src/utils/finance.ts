@@ -76,17 +76,15 @@ export async function recalculateMonthlyHistory(): Promise<void> {
       // Save locally to Dexie
       await db.months.put(monthSummary);
       
-      // Sync with Firebase Firestore if user session exists
+      // Sync with Firebase Firestore in the background (non-blocking)
       const user = auth.currentUser;
       if (user) {
-        try {
-          await setDoc(doc(firestore, 'users', user.uid, 'months', yearMonth), {
-            ...monthSummary,
-            updatedAt: new Date().toISOString()
-          });
-        } catch (fbErr) {
+        setDoc(doc(firestore, 'users', user.uid, 'months', yearMonth), {
+          ...monthSummary,
+          updatedAt: new Date().toISOString()
+        }).catch(fbErr => {
           console.warn(`Firestore sync skipped for ${yearMonth}:`, fbErr);
-        }
+        });
       }
       
       // Cascade carryForward to next month's openingBalance

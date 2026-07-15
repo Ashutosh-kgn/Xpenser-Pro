@@ -77,7 +77,7 @@ export const DashboardView: React.FC = () => {
       const carry = monthSummary ? monthSummary.carryForward : 0;
       const budget = monthSummary ? monthSummary.budget : 0;
       
-      const available = opening + income;
+      const available = opening + income - expense;
       const savings = income - expense;
 
       // Calculate Net Worth: Cash available (All Incomes - All Expenses) + Investments
@@ -320,7 +320,7 @@ export const DashboardView: React.FC = () => {
                 ₹{isMonthLoading ? '000,000' : metrics.availableBalance.toLocaleString()}
               </h2>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                (Opening Balance + Inflows)
+                (Total Inflows - Total Expenses)
               </span>
             </div>
 
