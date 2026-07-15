@@ -28,6 +28,7 @@ export const HistoryView: React.FC = () => {
   const setEditingTransactionId = useStore(state => state.setEditingTransactionId);
   const setActiveTransactionModal = useStore(state => state.setActiveTransactionModal);
   const addToast = useStore(state => state.addToast);
+  const firebaseUser = useStore(state => state.firebaseUser);
 
   // Date states: defaults to active month range
   const [startDate, setStartDate] = useState('');
@@ -48,8 +49,7 @@ export const HistoryView: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) {
+    if (!firebaseUser) {
       const loadLocal = async () => {
         const localTxs = await db.transactions.toArray();
         setTransactions(localTxs);
@@ -60,7 +60,7 @@ export const HistoryView: React.FC = () => {
     }
 
     setLoading(true);
-    const q = query(collection(firestore, 'users', user.uid, 'transactions'));
+    const q = query(collection(firestore, 'users', firebaseUser.uid, 'transactions'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const txList: any[] = [];
       snapshot.forEach(doc => {
@@ -68,6 +68,17 @@ export const HistoryView: React.FC = () => {
       });
       setTransactions(txList);
       setLoading(false);
+
+      // Sync Firestore collection changes directly to local Dexie IndexedDB
+      db.transactions.clear().then(() => {
+        if (txList.length > 0) {
+          db.transactions.bulkAdd(txList).catch(err => {
+            console.warn("Real-time bulk write to Dexie failed:", err);
+          });
+        }
+      }).catch(err => {
+        console.warn("Failed to clear local transactions cache:", err);
+      });
     }, (error) => {
       console.warn("Firestore collection listener failed, falling back to local DB:", error);
       db.transactions.toArray().then(localTxs => {
@@ -77,7 +88,7 @@ export const HistoryView: React.FC = () => {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [firebaseUser]);
 
   // Filter transactions in memory
   const filteredTxs = transactions.filter(t => {
@@ -123,6 +134,33 @@ export const HistoryView: React.FC = () => {
         console.error('Delete failed:', err);
         alert('Failed to delete transaction: ' + String(err));
       }
+    }
+  };
+
+  const handleViewReceipt = async (t: any) => {
+    if (!t.billUrl) return;
+
+    if (t.billUrl === 'local_attachment' || t.billUrl.startsWith('data:')) {
+      try {
+        const localTx = await db.transactions.get(t.id);
+        if (localTx && localTx.billUrl && localTx.billUrl.startsWith('data:')) {
+          const newWindow = window.open();
+          if (newWindow) {
+            newWindow.document.write(
+              `<html><head><title>View Receipt: ${localTx.billName || 'receipt'}</title></head><body style="margin:0;"><iframe src="${localTx.billUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe></body></html>`
+            );
+          } else {
+            addToast('Popup blocked! Please allow popups to view receipt.', 'error');
+          }
+        } else {
+          addToast('Local receipt attachment not found.', 'error');
+        }
+      } catch (err) {
+        console.error("Failed to read local receipt:", err);
+        addToast('Failed to load local receipt.', 'error');
+      }
+    } else {
+      window.open(t.billUrl, '_blank');
     }
   };
 
@@ -965,15 +1003,13 @@ export const HistoryView: React.FC = () => {
                     <td style={{ padding: '14px 16px', textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
                         {t.billUrl && (
-                          <a
-                            href={t.billUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            onClick={() => handleViewReceipt(t)}
                             style={{ background: 'transparent', border: 'none', color: 'var(--color-success)', cursor: 'pointer', padding: '4px', display: 'flex', textDecoration: 'none' }}
                             title={`View Receipt: ${t.billName || 'receipt'}`}
                           >
                             <Paperclip size={14} />
-                          </a>
+                          </button>
                         )}
                         <button
                           onClick={() => handleEditTransaction(t.id!)}

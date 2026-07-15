@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { db } from '../db/db';
+import { syncProfileToCloud } from '../utils/finance';
 
 type SectionType = 'dashboard' | 'investments' | 'subscriptions' | 'budgets' | 'family' | 'ai' | 'gamification' | 'settings' | 'history' | 'profile';
 type ThemeType = 'dark' | 'light' | 'amoled';
@@ -60,7 +61,9 @@ export const useStore = create<AppState>()((set, get) => ({
     set({ theme });
     document.documentElement.setAttribute('data-theme', theme);
     // Persist to IndexedDB userProfile
-    db.userProfile.update('profile', { theme }).catch(console.error);
+    db.userProfile.update('profile', { theme }).then(() => {
+      syncProfileToCloud().catch(console.error);
+    }).catch(console.error);
   },
 
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
@@ -128,6 +131,7 @@ export const useStore = create<AppState>()((set, get) => ({
         xp: currentXp, 
         level: newLevel 
       });
+      await syncProfileToCloud();
       
       if (hasLeveledUp) {
         // Trigger window event so components can show level-up confetti!

@@ -45,9 +45,13 @@ export const ProfileView: React.FC = () => {
   const budgetLimit = profile?.monthlyExpenseLimit || 45000;
   const monthlyExpense = transactions
     .filter(t => {
-      const d = new Date(t.date);
+      if (!t.date) return false;
+      const parts = t.date.split('-');
+      if (parts.length < 2) return false;
+      const ty = parseInt(parts[0], 10);
+      const tm = parseInt(parts[1], 10);
       const now = new Date();
-      return t.type === 'expense' && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      return t.type === 'expense' && (tm - 1) === now.getMonth() && ty === now.getFullYear();
     })
     .reduce((acc, t) => acc + t.amount, 0);
 

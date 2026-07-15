@@ -11,6 +11,14 @@ import { auth, firestore, storage } from '../../firebase/firebase';
 import { doc, collection, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
+const getLocalTodayString = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const transactionSchema = z.object({
   type: z.enum(['income', 'expense']),
   amount: z.coerce.number().positive('Amount must be a positive number'),
@@ -57,7 +65,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       amount: 0,
       category: '',
       description: '',
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalTodayString(),
       familyMember: 'Self'
     }
   });
@@ -87,7 +95,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setValue('amount', 0);
       setValue('category', '');
       setValue('description', '');
-      setValue('date', new Date().toISOString().split('T')[0]);
+      setValue('date', getLocalTodayString());
       setValue('familyMember', 'Self');
       setUploadedBillName('');
       setUploadedBillUrl('');
@@ -103,7 +111,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       amount: 0,
       category: '',
       description: '',
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalTodayString(),
       familyMember: 'Self'
     });
     setUploadedBillName('');
@@ -158,13 +166,11 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       let billName = uploadedBillName;
 
       // Handle cloud file upload if a new file is specified
-      if (selectedFile && fileBase64) {
+      if (selectedFile) {
         if (user) {
           try {
             const storageRef = ref(storage, `users/${user.uid}/receipts/${txId}`);
-            const response = await fetch(fileBase64);
-            const blob = await response.blob();
-            await uploadBytes(storageRef, blob);
+            await uploadBytes(storageRef, selectedFile);
             billUrl = await getDownloadURL(storageRef);
           } catch (uploadErr) {
             console.error("Firebase Storage upload failed, using local base64:", uploadErr);
@@ -189,10 +195,14 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         // Update local Dexie DB
         await db.transactions.put({ id: editingTransactionId, ...formattedData });
         
-        // Sync with Firestore subcollection
+        // Sync with Firestore subcollection (omitting raw base64 to avoid size limits)
         if (user) {
+          const firestoreData = { ...formattedData };
+          if (firestoreData.billUrl && firestoreData.billUrl.startsWith('data:')) {
+            firestoreData.billUrl = 'local_attachment';
+          }
           await setDoc(doc(firestore, 'users', user.uid, 'transactions', editingTransactionId), {
-            ...formattedData,
+            ...firestoreData,
             updatedAt: new Date().toISOString()
           });
         }
@@ -202,10 +212,14 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         // Add to local Dexie DB
         await db.transactions.put({ id: txId, ...formattedData });
         
-        // Sync with Firestore subcollection
+        // Sync with Firestore subcollection (omitting raw base64 to avoid size limits)
         if (user && newDocRef) {
+          const firestoreData = { ...formattedData };
+          if (firestoreData.billUrl && firestoreData.billUrl.startsWith('data:')) {
+            firestoreData.billUrl = 'local_attachment';
+          }
           await setDoc(newDocRef, {
-            ...formattedData,
+            ...firestoreData,
             timestamp: new Date().toISOString()
           });
         }
@@ -332,11 +346,11 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         )}
 
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
-          <Button type="button" variant="secondary" onClick={handleClose} disabled={isSubmitting}>
+          <Button type="button" variant="secondary" onClick={handleClose} disabled={isSubmitting || fileUploading}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary" disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : (editingTransactionId ? 'Save Changes' : 'Record Transaction')}
+          <Button type="submit" variant="primary" disabled={isSubmitting || fileUploading}>
+            {fileUploading ? 'Reading file...' : (isSubmitting ? 'Saving...' : (editingTransactionId ? 'Save Changes' : 'Record Transaction'))}
           </Button>
         </div>
       </form>

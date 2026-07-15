@@ -39,6 +39,17 @@ export const DashboardView: React.FC = () => {
   const transactions = useLiveQuery(() => db.transactions.toArray()) || [];
   const investments = useLiveQuery(() => db.investments.toArray()) || [];
   const goals = useLiveQuery(() => db.goals.toArray()) || [];
+  const profile = useLiveQuery(() => db.userProfile.get('profile'));
+  
+  // Calculate dynamic greeting based on current local hour
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+  const greeting = getGreeting();
+  const userName = profile?.name || 'Ashutosh';
   
   // Retrieve the month summary for the active selected month
   const selectedYearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
@@ -90,7 +101,7 @@ export const DashboardView: React.FC = () => {
       // Calculate yesterday's spend
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
       const ySpend = allTxs
         .filter(t => t.type === 'expense' && t.date === yesterdayStr)
         .reduce((acc, t) => acc + t.amount, 0);
@@ -148,11 +159,12 @@ export const DashboardView: React.FC = () => {
       
       const dayTxs = transactions.filter(t => {
         if (!t.date) return false;
-        const d = new Date(t.date);
-        return !isNaN(d.getTime()) && 
-               d.getFullYear() === selectedYear && 
-               (d.getMonth() + 1) === selectedMonth && 
-               d.getDate() === day;
+        const parts = t.date.split('-');
+        if (parts.length < 3) return false;
+        const ty = parseInt(parts[0], 10);
+        const tm = parseInt(parts[1], 10);
+        const td = parseInt(parts[2], 10);
+        return ty === selectedYear && tm === selectedMonth && td === day;
       });
       const inc = dayTxs.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
       const exp = dayTxs.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
@@ -250,25 +262,33 @@ export const DashboardView: React.FC = () => {
   };
 
   const getTimelineDateLabel = (dateStr: string) => {
-    const today = new Date().toISOString().split('T')[0];
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const todayObj = new Date();
+    const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
+    
+    const yesterdayObj = new Date();
+    yesterdayObj.setDate(yesterdayObj.getDate() - 1);
+    const yesterdayStr = `${yesterdayObj.getFullYear()}-${String(yesterdayObj.getMonth() + 1).padStart(2, '0')}-${String(yesterdayObj.getDate()).padStart(2, '0')}`;
 
-    if (dateStr === today) return 'Today';
+    if (dateStr === todayStr) return 'Today';
     if (dateStr === yesterdayStr) return 'Yesterday';
 
-    const d = new Date(dateStr);
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const parts = dateStr.split('-');
+    if (parts.length < 3) return dateStr;
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    const dateObj = new Date(y, m, d);
+    return dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
   // Filter transactions for the selected month timeline
   const monthTransactions = transactions.filter(t => {
     if (!t.date) return false;
-    const d = new Date(t.date);
-    return !isNaN(d.getTime()) && 
-           d.getFullYear() === selectedYear && 
-           (d.getMonth() + 1) === selectedMonth;
+    const parts = t.date.split('-');
+    if (parts.length < 2) return false;
+    const ty = parseInt(parts[0], 10);
+    const tm = parseInt(parts[1], 10);
+    return ty === selectedYear && tm === selectedMonth;
   });
   const sortedTransactions = [...monthTransactions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
   let lastDateLabel = '';
@@ -297,7 +317,7 @@ export const DashboardView: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h2 style={{ fontSize: '1.75rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em', color: 'var(--text-heading)' }}>
-            Good Morning, Ashutosh 👋
+            {greeting}, {userName} 👋
           </h2>
           <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
             Here is your financial operating snapshot for the month.

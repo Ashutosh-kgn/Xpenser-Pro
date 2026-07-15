@@ -5,6 +5,7 @@ import { Card } from '../../design-system/Card';
 import { Button } from '../../design-system/Button';
 import { useStore } from '../../store/useStore';
 import { Sliders, ShieldAlert, Sparkles, Umbrella, Library, Gift, Wallet } from 'lucide-react';
+import { syncProfileToCloud } from '../../utils/finance';
 
 export const BudgetView: React.FC = () => {
   const { addXp } = useStore();
@@ -39,6 +40,7 @@ export const BudgetView: React.FC = () => {
     setLoading(true);
     await new Promise(resolve => setTimeout(resolve, 500));
     await db.userProfile.update('profile', { monthlyExpenseLimit: limitNum });
+    await syncProfileToCloud();
     setExpenseLimit(limitNum);
     await addXp(25);
     alert('Smart Expense Limit updated! Awarded +25 XP.');
@@ -57,6 +59,7 @@ export const BudgetView: React.FC = () => {
       budgetMode: mode,
       monthlyExpenseLimit: newLimit
     });
+    await syncProfileToCloud();
     
     useStore.setState({ budgetMode: mode });
     setExpenseLimit(newLimit);

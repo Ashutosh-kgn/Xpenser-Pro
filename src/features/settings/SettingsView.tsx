@@ -7,6 +7,7 @@ import { doc, setDoc, getDoc, getDocs, collection } from 'firebase/firestore';
 import { auth, firestore } from '../../firebase/firebase';
 import { Dialog } from '../../design-system/Dialog';
 import { generate2FASecret, verifyTOTP } from '../../utils/totp';
+import { syncProfileToCloud } from '../../utils/finance';
 import QRCode from 'qrcode';
 import { 
   Palette, 
@@ -171,6 +172,7 @@ export const SettingsView: React.FC = () => {
     setLoading(true);
     await new Promise(resolve => setTimeout(resolve, 500));
     await db.userProfile.update('profile', { currency });
+    await syncProfileToCloud();
     await addXp(20);
     addToast('🎨 Financial rules and currency successfully updated! +20 XP', 'success');
     setLoading(false);
@@ -197,6 +199,7 @@ export const SettingsView: React.FC = () => {
             is2FAEnabled: false,
             twoFactorSecret: undefined
           });
+          await syncProfileToCloud();
           setIs2FAEnabled(false);
           localStorage.removeItem('settings_is2FAEnabled');
           await syncProfileData();
@@ -226,6 +229,7 @@ export const SettingsView: React.FC = () => {
           is2FAEnabled: true,
           twoFactorSecret: temp2FASecret
         });
+        await syncProfileToCloud();
         setIs2FAEnabled(true);
         localStorage.setItem('settings_is2FAEnabled', 'true');
         await syncProfileData();

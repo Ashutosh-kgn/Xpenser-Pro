@@ -357,7 +357,18 @@ export const SubscriptionsView: React.FC = () => {
               <div style={{ position: 'absolute', left: '7px', top: '6px', bottom: '6px', width: '2px', background: 'var(--border)' }} />
               
               {activeSubs.slice(0, 4).map((sub, idx) => {
-                const diffDays = Math.round((new Date(sub.nextBillingDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                const parts = sub.nextBillingDate.split('-');
+                let diffDays = 0;
+                if (parts.length >= 3) {
+                  const sy = parseInt(parts[0], 10);
+                  const sm = parseInt(parts[1], 10) - 1;
+                  const sd = parseInt(parts[2], 10);
+                  const targetDate = new Date(sy, sm, sd);
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  targetDate.setHours(0, 0, 0, 0);
+                  diffDays = Math.round((targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                }
                 const cycleColor = diffDays <= 3 ? 'var(--color-error)' : diffDays <= 7 ? 'var(--color-warning)' : 'var(--color-success)';
                 const cycleText = diffDays <= 0 ? 'Today' : diffDays === 1 ? 'Tomorrow' : `In ${diffDays} days`;
                 
