@@ -69,15 +69,40 @@ export const HistoryView: React.FC = () => {
       setTransactions(txList);
       setLoading(false);
 
-      // Sync Firestore collection changes directly to local Dexie IndexedDB
-      db.transactions.clear().then(() => {
-        if (txList.length > 0) {
-          db.transactions.bulkAdd(txList).catch(err => {
-            console.warn("Real-time bulk write to Dexie failed:", err);
-          });
-        }
+      // Sync Firestore collection changes directly to local Dexie IndexedDB, preserving local data: attachments
+      db.transactions.toArray().then((existingTxs) => {
+        const base64Map = new Map<string, { billUrl: string; billName?: string }>();
+        existingTxs.forEach(tx => {
+          if (tx.id && tx.billUrl && tx.billUrl.startsWith('data:')) {
+            base64Map.set(tx.id, { billUrl: tx.billUrl, billName: tx.billName });
+          }
+        });
+
+        const mergedTxs = txList.map(tx => {
+          if (tx.id && tx.billUrl === 'local_attachment') {
+            const preserved = base64Map.get(tx.id);
+            if (preserved) {
+              return {
+                ...tx,
+                billUrl: preserved.billUrl,
+                billName: preserved.billName || tx.billName
+              };
+            }
+          }
+          return tx;
+        });
+
+        db.transactions.clear().then(() => {
+          if (mergedTxs.length > 0) {
+            db.transactions.bulkAdd(mergedTxs).catch(err => {
+              console.warn("Real-time bulk write to Dexie failed:", err);
+            });
+          }
+        }).catch(err => {
+          console.warn("Failed to clear local transactions cache:", err);
+        });
       }).catch(err => {
-        console.warn("Failed to clear local transactions cache:", err);
+        console.warn("Failed to read existing local transactions for merging:", err);
       });
     }, (error) => {
       console.warn("Firestore collection listener failed, falling back to local DB:", error);

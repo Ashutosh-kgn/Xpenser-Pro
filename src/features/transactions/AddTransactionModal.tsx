@@ -181,6 +181,18 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         }
       }
 
+      // If editing and no new file was chosen, preserve any existing local data: URL
+      if (editingTransactionId && !selectedFile && billUrl === 'local_attachment') {
+        try {
+          const existingLocal = await db.transactions.get(editingTransactionId);
+          if (existingLocal && existingLocal.billUrl && existingLocal.billUrl.startsWith('data:')) {
+            billUrl = existingLocal.billUrl;
+          }
+        } catch (dbErr) {
+          console.warn("Failed to retrieve existing transaction for local attachment preservation:", dbErr);
+        }
+      }
+
       const formattedData = {
         ...data,
         description: data.description?.trim() || '',
