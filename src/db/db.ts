@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 
 export interface Transaction {
-  id?: number;
+  id?: string;
   type: 'income' | 'expense' | 'transfer';
   amount: number;
   category: string;
@@ -9,6 +9,8 @@ export interface Transaction {
   date: string; // YYYY-MM-DD
   familyMember?: 'Self' | 'Partner' | 'Child';
   status?: 'pending' | 'approved' | 'completed';
+  billUrl?: string;
+  billName?: string;
 }
 
 export interface Subscription {
@@ -65,6 +67,8 @@ export interface UserProfile {
   monthlyIncomeLimit?: number;
   monthlyExpenseLimit?: number;
   country?: string;
+  is2FAEnabled?: boolean;
+  twoFactorSecret?: string;
 }
 
 class XpenserDB extends Dexie {
@@ -76,9 +80,9 @@ class XpenserDB extends Dexie {
   months!: Table<MonthSummary>;
 
   constructor() {
-    super('XpenserOS_DB');
-    this.version(2).stores({
-      transactions: '++id, type, category, date, familyMember, status',
+    super('XpenserOS_DB_v3');
+    this.version(3).stores({
+      transactions: 'id, type, category, date, familyMember, status',
       subscriptions: '++id, name, status',
       investments: '++id, name, type',
       goals: '++id, name',

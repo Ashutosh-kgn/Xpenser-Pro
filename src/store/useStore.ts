@@ -17,7 +17,7 @@ interface AppState {
   selectedMonth: number; // 1-12
   selectedYear: number;
   isMonthLoading: boolean;
-  editingTransactionId: number | null;
+  editingTransactionId: string | null;
   firebaseUser: any | null;
   
   // Actions
@@ -31,7 +31,7 @@ interface AppState {
   setSelectedMonth: (month: number) => void;
   setSelectedYear: (year: number) => void;
   setIsMonthLoading: (loading: boolean) => void;
-  setEditingTransactionId: (id: number | null) => void;
+  setEditingTransactionId: (id: string | null) => void;
   setFirebaseUser: (user: any | null) => void;
   toasts: { id: string; message: string; type: 'success' | 'info' | 'error' }[];
   addToast: (message: string, type?: 'success' | 'info' | 'error') => void;

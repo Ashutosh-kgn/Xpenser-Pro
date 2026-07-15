@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db/db';
 import { Card, Button } from '../../design-system';
 import { useStore } from '../../store/useStore';
@@ -16,9 +15,11 @@ import {
   Calendar,
   Edit,
   Trash2,
-  Mail
+  Mail,
+  Paperclip
 } from 'lucide-react';
-import { auth } from '../../firebase/firebase';
+import { auth, firestore } from '../../firebase/firebase';
+import { collection, query, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
 import { recalculateMonthlyHistory } from '../../utils/finance';
 
 export const HistoryView: React.FC = () => {
@@ -42,8 +43,41 @@ export const HistoryView: React.FC = () => {
     setEndDate(`${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(lastDayNum).padStart(2, '0')}`);
   }, [selectedMonth, selectedYear]);
 
-  // Fetch all transactions
-  const transactions = useLiveQuery(() => db.transactions.toArray()) || [];
+  // Fetch transactions from Firestore (with local DB fallback)
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) {
+      const loadLocal = async () => {
+        const localTxs = await db.transactions.toArray();
+        setTransactions(localTxs);
+        setLoading(false);
+      };
+      loadLocal();
+      return;
+    }
+
+    setLoading(true);
+    const q = query(collection(firestore, 'users', user.uid, 'transactions'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const txList: any[] = [];
+      snapshot.forEach(doc => {
+        txList.push({ id: doc.id, ...doc.data() });
+      });
+      setTransactions(txList);
+      setLoading(false);
+    }, (error) => {
+      console.warn("Firestore collection listener failed, falling back to local DB:", error);
+      db.transactions.toArray().then(localTxs => {
+        setTransactions(localTxs);
+        setLoading(false);
+      });
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Filter transactions in memory
   const filteredTxs = transactions.filter(t => {
@@ -73,10 +107,16 @@ export const HistoryView: React.FC = () => {
   const netSavings = totalInflow - totalOutflow;
 
   // Edit / Delete actions
-  const handleDeleteTransaction = async (id: number) => {
+  const handleDeleteTransaction = async (id: string) => {
     if (confirm('Are you sure you want to delete this transaction from history? All subsequent months will be recalculated automatically.')) {
       try {
         await db.transactions.delete(id);
+        
+        const user = auth.currentUser;
+        if (user) {
+          await deleteDoc(doc(firestore, 'users', user.uid, 'transactions', id));
+        }
+
         await recalculateMonthlyHistory();
         alert('Transaction deleted successfully!');
       } catch (err) {
@@ -86,7 +126,7 @@ export const HistoryView: React.FC = () => {
     }
   };
 
-  const handleEditTransaction = async (id: number) => {
+  const handleEditTransaction = async (id: string) => {
     try {
       const tx = await db.transactions.get(id);
       if (tx) {
@@ -882,7 +922,13 @@ export const HistoryView: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredTxs.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <span>⏳ Syncing transaction history from cloud...</span>
+                  </td>
+                </tr>
+              ) : filteredTxs.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)' }}>
                     <FileText size={24} style={{ margin: '0 auto 8px auto', display: 'block', color: 'var(--text-muted)', opacity: 0.5 }} />
@@ -917,7 +963,18 @@ export const HistoryView: React.FC = () => {
                       {t.type === 'income' ? '+' : '-'}₹{t.amount.toLocaleString()}
                     </td>
                     <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
+                        {t.billUrl && (
+                          <a
+                            href={t.billUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ background: 'transparent', border: 'none', color: 'var(--color-success)', cursor: 'pointer', padding: '4px', display: 'flex', textDecoration: 'none' }}
+                            title={`View Receipt: ${t.billName || 'receipt'}`}
+                          >
+                            <Paperclip size={14} />
+                          </a>
+                        )}
                         <button
                           onClick={() => handleEditTransaction(t.id!)}
                           style={{ background: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: '4px', display: 'flex' }}

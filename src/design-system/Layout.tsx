@@ -3,7 +3,8 @@ import { useStore } from '../store/useStore';
 import { db, seedDatabase } from '../db/db';
 import { CommandPalette } from './CommandPalette';
 import { AddTransactionModal } from '../features/transactions/AddTransactionModal';
-import { auth } from '../firebase/firebase';
+import { auth, firestore } from '../firebase/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 import { 
   LayoutDashboard, 
   TrendingUp, 
@@ -18,7 +19,6 @@ import {
   Sparkles,
   Sun,
   Moon,
-  Zap,
   Settings,
   History,
   User,
@@ -135,8 +135,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               userSelect: 'none'
             }}
           >
-            <div style={{ background: 'var(--primary)', padding: '6px', borderRadius: '8px', display: 'flex', color: '#fff' }}>
-              <Zap size={20} fill="#fff" />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <img src="/logo.png" alt="Xpenser Pro Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
             </div>
             <h1 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700, letterSpacing: '-0.02em', background: 'linear-gradient(90deg, var(--text-heading), var(--primary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               Xpenser Pro
@@ -457,6 +457,34 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 onClick={async () => {
                   setIsMobileMenuOpen(false);
                   if (confirm('Are you sure you want to sign out?')) {
+                    const user = auth.currentUser;
+                    if (user) {
+                      try {
+                        const subscriptions = await db.subscriptions.toArray();
+                        const investments = await db.investments.toArray();
+                        const goals = await db.goals.toArray();
+                        const profile = await db.userProfile.get('profile');
+                        
+                        await setDoc(doc(firestore, 'users', user.uid), {
+                          subscriptions,
+                          investments,
+                          goals,
+                          profile,
+                          updatedAt: new Date().toISOString()
+                        });
+                      } catch (backupErr) {
+                        console.warn('Auto backup skipped on logout:', backupErr);
+                      }
+                    }
+
+                    // Clear local DB tables
+                    await db.transactions.clear();
+                    await db.subscriptions.clear();
+                    await db.investments.clear();
+                    await db.goals.clear();
+                    await db.userProfile.clear();
+                    await db.months.clear();
+
                     try {
                       const { signOut: firebaseSignOut } = await import('firebase/auth');
                       await firebaseSignOut(auth);
@@ -464,6 +492,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                       console.warn('Firebase signout bypassed:', err);
                     }
                     localStorage.removeItem('xpenser_auth');
+                    localStorage.removeItem('xpenser_mpin');
                     window.location.reload();
                   }
                 }}

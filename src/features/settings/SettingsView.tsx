@@ -3,8 +3,11 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db/db';
 import { Card, Button } from '../../design-system';
 import { useStore } from '../../store/useStore';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, collection } from 'firebase/firestore';
 import { auth, firestore } from '../../firebase/firebase';
+import { Dialog } from '../../design-system/Dialog';
+import { generate2FASecret, verifyTOTP } from '../../utils/totp';
+import QRCode from 'qrcode';
 import { 
   Palette, 
   ShieldCheck, 
@@ -40,10 +43,18 @@ export const SettingsView: React.FC = () => {
   const [animationLevel, setAnimationLevel] = useState(() => localStorage.getItem('settings_animationLevel') || 'full');
   
   // Custom triggers
-  const [is2FAEnabled, setIs2FAEnabled] = useState(() => localStorage.getItem('settings_is2FAEnabled') === 'true');
+  const [is2FAEnabled, setIs2FAEnabled] = useState(false);
   const [isBiometricEnabled, setIsBiometricEnabled] = useState(() => localStorage.getItem('settings_isBiometricEnabled') !== 'false');
   const [isAIAssistantEnabled, setIsAIAssistantEnabled] = useState(() => localStorage.getItem('settings_isAIAssistantEnabled') !== 'false');
   const [aiPersonality, setAiPersonality] = useState(() => localStorage.getItem('settings_aiPersonality') || 'friendly');
+
+  // 2FA Setup states
+  const [is2FASetupOpen, setIs2FASetupOpen] = useState(false);
+  const [temp2FASecret, setTemp2FASecret] = useState('');
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
+  const [otpVerificationCode, setOtpVerificationCode] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [verifying2FA, setVerifying2FA] = useState(false);
   
   // Notifications tab fields
   const [pushNotifications, setPushNotifications] = useState(() => localStorage.getItem('settings_pushNotifications') !== 'false');
@@ -137,8 +148,23 @@ export const SettingsView: React.FC = () => {
     if (profile) {
       if (profile.currency) setCurrency(profile.currency);
       if (profile.theme) setTheme(profile.theme);
+      setIs2FAEnabled(!!profile.is2FAEnabled);
     }
   }, [profile]);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (temp2FASecret && user?.email) {
+      const otpauthUrl = `otpauth://totp/XpenserPro:${user.email}?secret=${temp2FASecret}&issuer=XpenserPro`;
+      QRCode.toDataURL(otpauthUrl, { width: 180, margin: 1 })
+        .then(url => {
+          setQrCodeDataUrl(url);
+        })
+        .catch(err => {
+          console.error("Failed to generate QR code data URL:", err);
+        });
+    }
+  }, [temp2FASecret]);
 
   const handleUpdatePreferences = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,6 +174,73 @@ export const SettingsView: React.FC = () => {
     await addXp(20);
     addToast('🎨 Financial rules and currency successfully updated! +20 XP', 'success');
     setLoading(false);
+  };
+
+  const handle2FAToggle = async (checked: boolean) => {
+    const user = auth.currentUser;
+    if (!user) {
+      alert('You must be signed in via Firebase to configure Two-Factor Authentication.');
+      return;
+    }
+
+    if (checked) {
+      const newSecret = generate2FASecret();
+      setTemp2FASecret(newSecret);
+      setOtpVerificationCode('');
+      setOtpError('');
+      setIs2FASetupOpen(true);
+    } else {
+      if (confirm('🔒 Are you sure you want to disable Two-Factor Authentication? This will reduce the security level of your account.')) {
+        setLoading(true);
+        try {
+          await db.userProfile.update('profile', {
+            is2FAEnabled: false,
+            twoFactorSecret: undefined
+          });
+          setIs2FAEnabled(false);
+          localStorage.removeItem('settings_is2FAEnabled');
+          await syncProfileData();
+          addToast('🔒 Two-Factor Authentication disabled.', 'info');
+        } catch (err) {
+          console.error("Disable 2FA failed:", err);
+          alert("Failed to disable 2FA: " + String(err));
+        } finally {
+          setLoading(false);
+        }
+      }
+    }
+  };
+
+  const handleVerify2FASetup = async () => {
+    if (otpVerificationCode.length !== 6) {
+      setOtpError('Please enter a 6-digit verification code.');
+      return;
+    }
+
+    setVerifying2FA(true);
+    setOtpError('');
+    try {
+      const isValid = await verifyTOTP(otpVerificationCode, temp2FASecret);
+      if (isValid) {
+        await db.userProfile.update('profile', {
+          is2FAEnabled: true,
+          twoFactorSecret: temp2FASecret
+        });
+        setIs2FAEnabled(true);
+        localStorage.setItem('settings_is2FAEnabled', 'true');
+        await syncProfileData();
+        
+        addToast('🔒 Two-Factor Authentication successfully enabled!', 'success');
+        setIs2FASetupOpen(false);
+      } else {
+        setOtpError('❌ Incorrect verification code. Please check your authenticator app and try again.');
+      }
+    } catch (err) {
+      console.error("2FA setup verification failed:", err);
+      setOtpError('An error occurred during verification.');
+    } finally {
+      setVerifying2FA(false);
+    }
   };
 
   const handleResetSystem = async () => {
@@ -182,6 +275,7 @@ export const SettingsView: React.FC = () => {
         await db.investments.clear();
         await db.goals.clear();
         await db.userProfile.clear();
+        await db.months.clear();
         
         localStorage.removeItem('xpenser_auth');
         localStorage.removeItem('settings_accentColor');
@@ -222,6 +316,35 @@ export const SettingsView: React.FC = () => {
 
   const handleLogout = async () => {
     if (confirm('Are you sure you want to sign out and lock Xpenser Pro?')) {
+      const user = auth.currentUser;
+      if (user) {
+        try {
+          // 1. Silent cloud auto-backup before logout
+          const subscriptions = await db.subscriptions.toArray();
+          const investments = await db.investments.toArray();
+          const goals = await db.goals.toArray();
+          const profile = await db.userProfile.get('profile');
+          
+          await setDoc(doc(firestore, 'users', user.uid), {
+            subscriptions,
+            investments,
+            goals,
+            profile,
+            updatedAt: new Date().toISOString()
+          });
+        } catch (backupErr) {
+          console.warn('Auto backup skipped on logout:', backupErr);
+        }
+      }
+
+      // 2. Clear IndexedDB for user privacy & session isolation
+      await db.transactions.clear();
+      await db.subscriptions.clear();
+      await db.investments.clear();
+      await db.goals.clear();
+      await db.userProfile.clear();
+      await db.months.clear();
+
       try {
         const { signOut: firebaseSignOut } = await import('firebase/auth');
         await firebaseSignOut(auth);
@@ -229,7 +352,9 @@ export const SettingsView: React.FC = () => {
         console.warn('Firebase signout bypassed:', err);
       }
       localStorage.removeItem('xpenser_auth');
+      localStorage.removeItem('xpenser_mpin');
       setIsAuthenticated(false);
+      window.location.reload();
     }
   };
 
@@ -261,15 +386,36 @@ export const SettingsView: React.FC = () => {
       const investments = await db.investments.toArray();
       const goals = await db.goals.toArray();
       const profile = await db.userProfile.get('profile');
+      const months = await db.months.toArray();
       
+      // 1. Save profile, subscriptions, investments, goals to main doc
       await setDoc(doc(firestore, 'users', user.uid), {
-        transactions,
         subscriptions,
         investments,
         goals,
         profile,
         updatedAt: new Date().toISOString()
       });
+
+      // 2. Parallel upload transactions
+      const txWrites = transactions.map(tx => {
+        const txId = tx.id || Math.random().toString(36).substring(2, 15);
+        return setDoc(doc(firestore, 'users', user.uid, 'transactions', txId), {
+          ...tx,
+          id: txId,
+          updatedAt: new Date().toISOString()
+        });
+      });
+      await Promise.all(txWrites);
+
+      // 3. Parallel upload months
+      const monthWrites = months.map(m => {
+        return setDoc(doc(firestore, 'users', user.uid, 'months', m.yearMonth), {
+          ...m,
+          updatedAt: new Date().toISOString()
+        });
+      });
+      await Promise.all(monthWrites);
       
       await addXp(50);
       alert('☁️ Success! IndexedDB data synced securely to Firebase Firestore. Earned +50 XP!');
@@ -291,24 +437,40 @@ export const SettingsView: React.FC = () => {
     setLoading(true);
     try {
       const docSnap = await getDoc(doc(firestore, 'users', user.uid));
-      if (!docSnap.exists()) {
-        alert('No backup found in Firestore cloud for this session.');
-        return;
-      }
       
-      const data = docSnap.data();
-      
+      // Fetch subcollections
+      const txsSnap = await getDocs(collection(firestore, 'users', user.uid, 'transactions'));
+      const txsData: any[] = [];
+      txsSnap.forEach(d => {
+        txsData.push({ id: d.id, ...d.data() });
+      });
+
+      const monthsSnap = await getDocs(collection(firestore, 'users', user.uid, 'months'));
+      const monthsData: any[] = [];
+      monthsSnap.forEach(d => {
+        monthsData.push({ yearMonth: d.id, ...d.data() });
+      });
+
       await db.transactions.clear();
       await db.subscriptions.clear();
       await db.investments.clear();
       await db.goals.clear();
       await db.userProfile.clear();
+      await db.months.clear();
       
-      if (data.transactions) await db.transactions.bulkAdd(data.transactions);
-      if (data.subscriptions) await db.subscriptions.bulkAdd(data.subscriptions);
-      if (data.investments) await db.investments.bulkAdd(data.investments);
-      if (data.goals) await db.goals.bulkAdd(data.goals);
-      if (data.profile) await db.userProfile.put(data.profile);
+      if (txsData.length > 0) await db.transactions.bulkAdd(txsData);
+      if (monthsData.length > 0) await db.months.bulkPut(monthsData);
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.subscriptions) await db.subscriptions.bulkAdd(data.subscriptions);
+        if (data.investments) await db.investments.bulkAdd(data.investments);
+        if (data.goals) await db.goals.bulkAdd(data.goals);
+        if (data.profile) await db.userProfile.put(data.profile);
+      }
+      
+      const { recalculateMonthlyHistory } = await import('../../utils/finance');
+      await recalculateMonthlyHistory();
       
       await syncProfileData();
       alert('☁️ Success! IndexedDB data restored from Firebase Firestore cloud. System synced!');
@@ -485,17 +647,13 @@ export const SettingsView: React.FC = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', borderBottom: '1px solid var(--border)' }}>
                   <div>
                     <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-heading)', display: 'block' }}>Two-Factor Authentication (2FA)</span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Require email verification code on logins</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Google Authenticator TOTP protection</span>
                   </div>
                   <label className="switch">
                     <input 
                       type="checkbox" 
                       checked={is2FAEnabled} 
-                      onChange={(e) => {
-                        setIs2FAEnabled(e.target.checked);
-                        localStorage.setItem('settings_is2FAEnabled', String(e.target.checked));
-                        addToast(`🔒 2FA ${e.target.checked ? 'Enabled' : 'Disabled'}`, 'info');
-                      }} 
+                      onChange={(e) => handle2FAToggle(e.target.checked)} 
                     />
                     <span className="slider"></span>
                   </label>
@@ -866,6 +1024,86 @@ export const SettingsView: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {/* 2FA Setup Dialog Modal */}
+      <Dialog
+        isOpen={is2FASetupOpen}
+        onClose={() => setIs2FASetupOpen(false)}
+        title="Setup Two-Factor Authentication"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+            Scan the QR code with an authenticator app (such as Google Authenticator, Microsoft Authenticator, or Authy) to configure 2FA.
+          </p>
+
+          {auth.currentUser && temp2FASecret && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '16px', background: 'var(--surface-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+              <img 
+                src={qrCodeDataUrl}
+                alt="2FA QR Code" 
+                style={{ width: '180px', height: '180px', border: '8px solid white', borderRadius: '4px' }} 
+              />
+              <div style={{ textAlign: 'center', width: '100%' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Or manually type this secret key:</span>
+                <code style={{ display: 'block', margin: '6px auto', padding: '6px 12px', background: 'var(--border)', borderRadius: '4px', fontSize: '0.9375rem', letterSpacing: '0.05em', fontWeight: 700, color: 'var(--text-heading)', width: 'fit-content' }}>
+                  {temp2FASecret}
+                </code>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-heading)' }}>Enter 6-digit Verification Code</label>
+            <input 
+              type="text" 
+              maxLength={6}
+              placeholder="000000"
+              value={otpVerificationCode}
+              onChange={(e) => {
+                setOtpError('');
+                setOtpVerificationCode(e.target.value.replace(/\D/g, ''));
+              }}
+              style={{
+                width: '100%',
+                padding: '12px',
+                fontSize: '1.25rem',
+                letterSpacing: '0.3em',
+                textAlign: 'center',
+                background: 'var(--surface-elevated)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--text-heading)',
+                fontWeight: 'bold',
+                outline: 'none'
+              }}
+            />
+            {otpError && (
+              <span style={{ color: 'var(--color-error)', fontSize: '0.75rem', marginTop: '4px', display: 'block', fontWeight: 500 }}>
+                {otpError}
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
+            <Button 
+              type="button" 
+              variant="secondary" 
+              onClick={() => setIs2FASetupOpen(false)}
+              disabled={verifying2FA}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="button" 
+              variant="primary" 
+              onClick={handleVerify2FASetup}
+              disabled={verifying2FA || otpVerificationCode.length !== 6}
+            >
+              {verifying2FA ? 'Verifying...' : 'Verify & Enable'}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
 
       <style dangerouslySetInnerHTML={{ __html: `
         /* Toggle Switch (Scroll Button) Styling */

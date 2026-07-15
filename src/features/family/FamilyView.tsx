@@ -8,7 +8,7 @@ import { Check, X, ShieldAlert, Award } from 'lucide-react';
 
 export const FamilyView: React.FC = () => {
   const addXp = useStore(state => state.addXp);
-  const [processingId, setProcessingId] = useState<number | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   // Live queries from Dexie DB
   const transactions = useLiveQuery(() => db.transactions.toArray()) || [];
@@ -29,7 +29,7 @@ export const FamilyView: React.FC = () => {
     setProcessingId(null);
   };
 
-  const handleDecline = async (txId: number) => {
+  const handleDecline = async (txId: string) => {
     if (confirm('Are you sure you want to decline this request?')) {
       setProcessingId(txId);
       await new Promise(resolve => setTimeout(resolve, 500));

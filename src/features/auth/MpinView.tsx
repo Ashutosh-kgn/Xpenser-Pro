@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../../design-system';
-import { Zap, ShieldCheck, Lock, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 
 interface MpinViewProps {
@@ -109,8 +109,8 @@ export const MpinView: React.FC<MpinViewProps> = ({ onUnlock, onLogout }) => {
         
         {/* Brand Header */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '24px' }}>
-          <div className="logo-sparkle-badge" style={{ marginBottom: '8px' }}>
-            <Zap size={22} fill="#ffffff" />
+          <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img src="/logo.png" alt="Xpenser Pro Logo" style={{ width: '56px', height: '56px', objectFit: 'contain' }} />
           </div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-heading)', margin: 0 }}>XPENSER PRO</h2>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>AI Financial Operating System</span>
@@ -119,8 +119,12 @@ export const MpinView: React.FC<MpinViewProps> = ({ onUnlock, onLogout }) => {
         <Card variant="glass" style={{ padding: 'var(--space-xl)', boxShadow: 'var(--shadow-lg)', textAlign: 'center' }}>
           
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
-            <div style={{ background: isSetupMode ? 'rgba(0, 245, 212, 0.1)' : 'rgba(126, 82, 255, 0.1)', padding: '12px', borderRadius: '50%', color: isSetupMode ? 'var(--color-success)' : 'var(--primary)' }}>
-              {isSetupMode ? <ShieldCheck size={28} /> : <Lock size={28} />}
+            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '56px', height: '56px' }}>
+              <img 
+                src="/security-lock.png" 
+                alt="Security Lock" 
+                style={{ width: '32px', height: '32px', objectFit: 'contain' }} 
+              />
             </div>
           </div>
 

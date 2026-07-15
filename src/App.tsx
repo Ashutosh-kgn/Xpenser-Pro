@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useStore } from './store/useStore';
-import { seedDatabase } from './db/db';
+import { db, seedDatabase } from './db/db';
 import { Layout } from './design-system/Layout';
 import { LoginView } from './features/auth/LoginView';
 import { MpinView } from './features/auth/MpinView';
@@ -15,13 +15,15 @@ import { SettingsView } from './features/settings/SettingsView';
 import { HistoryView } from './features/history/HistoryView';
 import { ProfileView } from './features/profile/ProfileView';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from './firebase/firebase';
+import { auth, firestore } from './firebase/firebase';
+import { doc, getDoc, setDoc, getDocs, collection } from 'firebase/firestore';
 
 function App() {
   const activeSection = useStore(state => state.activeSection);
   const isAuthenticated = useStore(state => state.isAuthenticated);
   const setIsAuthenticated = useStore(state => state.setIsAuthenticated);
   const setFirebaseUser = useStore(state => state.setFirebaseUser);
+  const syncProfileData = useStore(state => state.syncProfileData);
   const toasts = useStore(state => state.toasts);
   const removeToast = useStore(state => state.removeToast);
   
@@ -36,8 +38,38 @@ function App() {
     }
   }, [isAuthenticated]);
 
+  // Auto-backup profile data and wipe DB on logout
   const handleLogout = async () => {
-    if (confirm('Are you sure you want to sign out and switch accounts?')) {
+    if (confirm('Are you sure you want to logout? Your latest profile will be backed up to the cloud.')) {
+      // 1. Silent cloud auto-backup of profile parameters to users/{uid}
+      const user = auth.currentUser;
+      if (user) {
+        try {
+          const subscriptions = await db.subscriptions.toArray();
+          const investments = await db.investments.toArray();
+          const goals = await db.goals.toArray();
+          const profile = await db.userProfile.get('profile');
+
+          await setDoc(doc(firestore, 'users', user.uid), {
+            subscriptions,
+            investments,
+            goals,
+            profile,
+            updatedAt: new Date().toISOString()
+          });
+        } catch (backupErr) {
+          console.warn('Auto backup skipped on logout:', backupErr);
+        }
+      }
+
+      // 2. Clear IndexedDB for user privacy & session isolation
+      await db.transactions.clear();
+      await db.subscriptions.clear();
+      await db.investments.clear();
+      await db.goals.clear();
+      await db.userProfile.clear();
+      await db.months.clear();
+
       try {
         const { signOut: firebaseSignOut } = await import('firebase/auth');
         await firebaseSignOut(auth);
@@ -48,18 +80,68 @@ function App() {
       localStorage.removeItem('xpenser_mpin');
       setIsAuthenticated(false);
       setIsMpinUnlocked(false);
+      window.location.reload();
     }
   };
 
   // Subscribe to Firebase Auth changes
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setIsAuthenticated(true);
         setFirebaseUser({
           uid: user.uid,
           email: user.email
         });
+
+        // 3. Auto-restore cloud data if IndexedDB is currently empty (e.g. login on new device/fresh signin)
+        try {
+          const txCount = await db.transactions.count();
+          if (txCount === 0) {
+            const docSnap = await getDoc(doc(firestore, 'users', user.uid));
+            
+            // Fetch transactions collection
+            const txsSnap = await getDocs(collection(firestore, 'users', user.uid, 'transactions'));
+            const txsData: any[] = [];
+            txsSnap.forEach(d => {
+              txsData.push({ id: d.id, ...d.data() });
+            });
+
+            // Fetch months collection
+            const monthsSnap = await getDocs(collection(firestore, 'users', user.uid, 'months'));
+            const monthsData: any[] = [];
+            monthsSnap.forEach(d => {
+              monthsData.push({ yearMonth: d.id, ...d.data() });
+            });
+
+            await db.transactions.clear();
+            await db.subscriptions.clear();
+            await db.investments.clear();
+            await db.goals.clear();
+            await db.userProfile.clear();
+            await db.months.clear();
+            
+            if (txsData.length > 0) await db.transactions.bulkAdd(txsData);
+            if (monthsData.length > 0) await db.months.bulkPut(monthsData);
+
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              if (data.subscriptions) await db.subscriptions.bulkAdd(data.subscriptions);
+              if (data.investments) await db.investments.bulkAdd(data.investments);
+              if (data.goals) await db.goals.bulkAdd(data.goals);
+              if (data.profile) await db.userProfile.put(data.profile);
+            }
+
+            // Recalculate monthly history locally to ensure carry-forwards are updated
+            const { recalculateMonthlyHistory } = await import('./utils/finance');
+            await recalculateMonthlyHistory();
+            
+            await syncProfileData();
+            console.log('☁️ Auto-restored user workspace data from Firestore cloud.');
+          }
+        } catch (restoreErr) {
+          console.warn('Auto-restore skipped:', restoreErr);
+        }
       } else {
         const localAuth = localStorage.getItem('xpenser_auth') === 'true';
         if (!localAuth) {
@@ -69,7 +151,7 @@ function App() {
       }
     });
     return () => unsubscribe();
-  }, [setIsAuthenticated, setFirebaseUser]);
+  }, [setIsAuthenticated, setFirebaseUser, syncProfileData]);
 
   useEffect(() => {
     const initializeDb = async () => {

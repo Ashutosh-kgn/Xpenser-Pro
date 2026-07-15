@@ -6,7 +6,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { 
-  Zap, 
   Key, 
   ArrowRight, 
   ShieldCheck, 
@@ -28,8 +27,9 @@ import {
   sendPasswordResetEmail,
   sendEmailVerification
 } from 'firebase/auth';
-import { auth } from '../../firebase/firebase';
+import { auth, firestore } from '../../firebase/firebase';
 import { db } from '../../db/db';
+import { verifyTOTP } from '../../utils/totp';
 
 // 1. Zod Validation Schemas
 const passwordValidation = z.string()
@@ -71,8 +71,8 @@ export const LoginView: React.FC = () => {
   const setFirebaseUser = useStore(state => state.setFirebaseUser);
   const setTheme = useStore(state => state.setTheme);
 
-  // Router view states: 'login' | 'register' | 'forgot' | 'verify'
-  const [view, setView] = useState<'login' | 'register' | 'forgot' | 'verify'>('login');
+  // Router view states: 'login' | 'register' | 'forgot' | 'verify' | 'two-factor'
+  const [view, setView] = useState<'login' | 'register' | 'forgot' | 'verify' | 'two-factor'>('login');
   
   // Registration steps: 1, 2, 3
   const [regStep, setRegStep] = useState<1 | 2 | 3>(1);
@@ -80,6 +80,13 @@ export const LoginView: React.FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   const [loading, setLoading] = useState(false);
+
+  // Temporary 2FA Authentication states
+  const [tempUserCredential, setTempUserCredential] = useState<any>(null);
+  const [temp2faSecret, setTemp2faSecret] = useState('');
+  const [tempProfile, setTempProfile] = useState<any>(null);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpError, setOtpError] = useState('');
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [shake, setShake] = useState(false);
@@ -170,25 +177,63 @@ export const LoginView: React.FC = () => {
           return;
         }
 
-        setFirebaseUser({
-          uid: userCredential.user.uid,
-          email: userCredential.user.email
-        });
+        // Fetch user profile from Firestore to check if 2FA is active
+        const { getDoc, doc } = await import('firebase/firestore');
+        const docSnap = await getDoc(doc(firestore, 'users', userCredential.user.uid));
+        
+        let is2FAActive = false;
+        let totpSecret = '';
+        let fetchedProfile: any = null;
 
-        // Remember email
-        if (data.rememberMe) {
-          localStorage.setItem('xpenser_remembered_email', data.email);
-        } else {
-          localStorage.removeItem('xpenser_remembered_email');
+        if (docSnap.exists()) {
+          const cloudData = docSnap.data();
+          if (cloudData.profile) {
+            fetchedProfile = cloudData.profile;
+            is2FAActive = !!fetchedProfile.is2FAEnabled;
+            totpSecret = fetchedProfile.twoFactorSecret || '';
+          }
         }
-        triggerSuccess();
+
+        if (is2FAActive && totpSecret) {
+          setTempUserCredential(userCredential.user);
+          setTemp2faSecret(totpSecret);
+          setTempProfile(fetchedProfile);
+          setOtpCode('');
+          setOtpError('');
+          setView('two-factor');
+          setLoading(false);
+        } else {
+          setFirebaseUser({
+            uid: userCredential.user.uid,
+            email: userCredential.user.email
+          });
+
+          // Remember email
+          if (data.rememberMe) {
+            localStorage.setItem('xpenser_remembered_email', data.email);
+          } else {
+            localStorage.removeItem('xpenser_remembered_email');
+          }
+          triggerSuccess();
+        }
       }
     } catch (err: any) {
       console.warn('Firebase login failed. Checking offline developer session...', err);
       // Resilience fallback:
       if (data.email === 'demo@xpenser.io' || data.email === 'ashutosh@xpenser.io' || err.code === 'auth/admin-restricted-operation') {
-        setFirebaseUser({ uid: 'offline_dev_uid', email: data.email });
-        triggerSuccess();
+        const localProfile = await db.userProfile.get('profile');
+        if (localProfile && localProfile.is2FAEnabled && localProfile.twoFactorSecret) {
+          setTempUserCredential({ uid: 'offline_dev_uid', email: data.email });
+          setTemp2faSecret(localProfile.twoFactorSecret);
+          setTempProfile(localProfile);
+          setOtpCode('');
+          setOtpError('');
+          setView('two-factor');
+          setLoading(false);
+        } else {
+          setFirebaseUser({ uid: 'offline_dev_uid', email: data.email });
+          triggerSuccess();
+        }
       } else {
         let friendlyMsg = 'Failed to authenticate. Please review credentials.';
         if (err.code === 'auth/wrong-password') {
@@ -206,6 +251,38 @@ export const LoginView: React.FC = () => {
         }
         triggerShake(friendlyMsg);
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    if (otpCode.length !== 6) {
+      setOtpError('Please enter a 6-digit code.');
+      return;
+    }
+
+    setLoading(true);
+    setOtpError('');
+    try {
+      const isValid = await verifyTOTP(otpCode, temp2faSecret);
+      if (isValid) {
+        setFirebaseUser({
+          uid: tempUserCredential.uid,
+          email: tempUserCredential.email
+        });
+
+        if (tempProfile) {
+          await db.userProfile.put(tempProfile);
+        }
+
+        triggerSuccess();
+      } else {
+        setOtpError('❌ Invalid authentication code. Please try again.');
+      }
+    } catch (e) {
+      console.error("2FA login verification failed:", e);
+      setOtpError('An error occurred during verification.');
     } finally {
       setLoading(false);
     }
@@ -351,8 +428,8 @@ export const LoginView: React.FC = () => {
           
           {/* Header Mobile Brand (Displays only on small mobile viewports) */}
           <div className="mobile-brand-banner">
-            <div className="logo-sparkle-badge" style={{ margin: '0 auto 8px auto' }}>
-              <Zap size={22} fill="#ffffff" />
+            <div style={{ margin: '0 auto 12px auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <img src="/logo.png" alt="Xpenser Pro Logo" style={{ width: '56px', height: '56px', objectFit: 'contain' }} />
             </div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-heading)', margin: 0 }}>XPENSER PRO</h2>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Your AI Financial Operating System</span>
@@ -865,6 +942,82 @@ export const LoginView: React.FC = () => {
                   >
                     Back to Sign In
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* VIEW E: Two-Factor Authentication OTP Verification */}
+            {view === 'two-factor' && (
+              <div>
+                <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(var(--primary-rgb), 0.1)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+                    <ShieldCheck size={24} />
+                  </div>
+                  <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-heading)', margin: 0 }}>2FA Verification</h2>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '8px', lineHeight: '1.4' }}>
+                    Two-Factor Authentication is enabled on this account. Please enter the 6-digit verification code from your authenticator app.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ textAlign: 'center', display: 'block' }}>Verification Code</label>
+                    <input 
+                      type="text"
+                      maxLength={6}
+                      placeholder="000000"
+                      value={otpCode}
+                      onChange={(e) => {
+                        setOtpError('');
+                        setOtpCode(e.target.value.replace(/\D/g, ''));
+                      }}
+                      className="input-field"
+                      style={{
+                        fontSize: '1.5rem',
+                        letterSpacing: '0.3em',
+                        textAlign: 'center',
+                        fontWeight: 'bold',
+                        padding: '12px'
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleVerifyOTP();
+                        }
+                      }}
+                    />
+                    {otpError && (
+                      <span className="input-err-msg" style={{ textAlign: 'center', display: 'block', marginTop: '6px' }}>
+                        {otpError}
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                    <Button 
+                      type="button" 
+                      variant="secondary" 
+                      style={{ flex: 1, justifyContent: 'center' }} 
+                      onClick={() => {
+                        setView('login');
+                        setTempUserCredential(null);
+                        setTemp2faSecret('');
+                        setTempProfile(null);
+                        setError('');
+                      }}
+                      disabled={loading}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant="primary" 
+                      style={{ flex: 1.5, justifyContent: 'center' }} 
+                      onClick={handleVerifyOTP}
+                      disabled={loading || otpCode.length !== 6}
+                    >
+                      <span>{loading ? 'Verifying...' : 'Verify & Sign In'}</span>
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
